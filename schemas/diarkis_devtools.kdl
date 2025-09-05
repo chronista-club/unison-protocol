@@ -1,0 +1,64 @@
+// Diarkis Ping-Pong Protocol Definition
+protocol "diarkis-ping-pong" version="1.0.0" {
+    namespace "diarkis.test"
+    
+    import "common.kdl"
+    
+    // Ping request message
+    message "PingRequest" {
+        field "message" type="string" required=true
+        field "timestamp" type="timestamp" required=true
+        field "sequence" type="int" required=false
+    }
+    
+    // Pong response message
+    message "PongResponse" {
+        field "message" type="string" required=true
+        field "timestamp" type="timestamp" required=true
+        field "echo" type="string" required=true
+        field "server_time" type="timestamp" required=true
+    }
+    
+    // Service definitions
+    service "PingPongService" {
+        // Ping method
+        method "ping" {
+            request {
+                field "message" type="string" required=true
+                field "timestamp" type="timestamp" required=true
+                field "sequence" type="int" required=false
+            }
+            response {
+                field "message" type="string" required=true
+                field "echo" type="string" required=true
+                field "server_time" type="timestamp" required=true
+                field "latency_ms" type="int" required=false
+            }
+        }
+        
+        // Health check method
+        method "health" {
+            request {}
+            response {
+                field "status" type="string" required=true
+                field "timestamp" type="timestamp" required=true
+                field "uptime_ms" type="int"
+            }
+        }
+        
+        // Echo stream for continuous ping-pong
+        stream "echo_stream" {
+            request {
+                field "message" type="string" required=true
+                field "interval_ms" type="int" default=1000
+                field "count" type="int" default=10
+            }
+            response {
+                field "sequence" type="int" required=true
+                field "echo" type="string" required=true
+                field "server_time" type="timestamp" required=true
+                field "round_trip_ms" type="int"
+            }
+        }
+    }
+}

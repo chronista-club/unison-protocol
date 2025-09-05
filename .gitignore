@@ -1,0 +1,37 @@
+# Rust
+/target/
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.pdb
+
+# Temporary files
+*.tmp
+*.temp
+
+# Logs
+*.log
+
+# Local development
+.env
+.env.local
+
+# Documentation build
+/docs/book/
+
+# Benchmark results
+/benches/results/
+
+# Generated code (for development)
+/generated/

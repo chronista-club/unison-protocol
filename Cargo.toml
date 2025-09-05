@@ -1,0 +1,63 @@
+[package]
+name = "unison-protocol"
+version = "0.1.0"
+edition = "2021"
+authors = ["Chronista Club <contact@chronista.club>"]
+description = "🎵 Unison Protocol - KDL-based type-safe communication framework"
+keywords = ["protocol", "kdl", "websocket", "rpc", "communication"]
+categories = ["network-programming", "web-programming", "api-bindings"]
+license = "MIT"
+homepage = "https://github.com/chronista-club/unison-protocol"
+repository = "https://github.com/chronista-club/unison-protocol"
+readme = "README.md"
+
+[dependencies]
+# KDL parsing
+kdl = "4.6"
+miette = { version = "7.2", features = ["fancy"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+
+# Code generation
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+convert_case = "0.6"
+
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+async-trait = "0.1"
+
+# WebSocket support
+tokio-tungstenite = "0.24"
+futures-util = "0.3"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.10", features = ["v4", "serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-stream = "0.3"
+indexmap = "2.6"
+
+[build-dependencies]
+kdl = "4.6"
+miette = { version = "7.2", features = ["fancy"] }
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
+convert_case = "0.6"
+anyhow = "1.0"
+
+[dev-dependencies]
+pretty_assertions = "1.4"
+tempfile = "3.13"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-stream = "0.3"
