@@ -1,5 +1,6 @@
 use anyhow::Result;
-use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt, UnisonNetworkError, ProtocolServer};
+use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt, ProtocolServer};
+use unison_protocol::network::NetworkError;
 use serde_json::json;
 use std::time::{Duration, Instant};
 use tracing::{info, Level};
@@ -29,7 +30,7 @@ async fn main() -> Result<()> {
     register_unison_handlers(&mut server, start_time).await;
     
     info!("🎵 Unison Protocol Server Started!");
-    info!("📡 Listening on: ws://127.0.0.1:8080");
+    info!("📡 Listening on: quic://127.0.0.1:8080 (QUIC Transport)");
     info!("🔧 Run client with: cargo run --example unison_ping_client");
     info!("📊 Available methods: ping, echo, get_server_time");
     info!("⏹️  Press Ctrl+C to stop");
@@ -84,7 +85,7 @@ async fn register_unison_handlers(server: &mut ProtocolServer, start_time: Insta
         info!("🎵 Sent pong: \"{}\" -> \"{}\"", 
               message, response["message"]);
         
-        Ok(response) as Result<serde_json::Value, UnisonNetworkError> as Result<serde_json::Value, UnisonNetworkError>
+        Ok(response) as Result<serde_json::Value, NetworkError>
     });
     
     // Register echo handler
@@ -111,7 +112,7 @@ async fn register_unison_handlers(server: &mut ProtocolServer, start_time: Insta
             "transformation_applied": if transform.is_empty() { None } else { Some(transform) }
         });
         
-        Ok(response) as Result<serde_json::Value, UnisonNetworkError>
+        Ok(response) as Result<serde_json::Value, NetworkError>
     });
     
     // Register get_server_time handler  
@@ -128,7 +129,7 @@ async fn register_unison_handlers(server: &mut ProtocolServer, start_time: Insta
             "uptime_seconds": uptime_seconds
         });
         
-        Ok(response) as Result<serde_json::Value, UnisonNetworkError>
+        Ok(response) as Result<serde_json::Value, NetworkError>
     });
     
     info!("🎵 Unison Protocol handlers registered successfully");

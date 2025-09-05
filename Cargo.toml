@@ -31,8 +31,12 @@ convert_case = "0.6"
 tokio = { version = "1.40", features = ["full"] }
 async-trait = "0.1"
 
-# WebSocket support
-tokio-tungstenite = "0.24"
+# QUIC support
+quinn = "0.11"
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+rustls-pemfile = "2.1"
+rcgen = "0.13"
+rust-embed = { version = "8.5", features = ["include-exclude"] }
 futures-util = "0.3"
 
 # Error handling
@@ -55,9 +59,12 @@ quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
 convert_case = "0.6"
 anyhow = "1.0"
+rcgen = "0.13"
 
 [dev-dependencies]
 pretty_assertions = "1.4"
 tempfile = "3.13"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 async-stream = "0.3"
+tokio-test = "0.4"
+chrono = { version = "0.4", features = ["serde"] }

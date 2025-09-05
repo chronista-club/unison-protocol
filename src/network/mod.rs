@@ -3,15 +3,19 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use futures_util::Stream;
 use std::pin::Pin;
+use std::time::SystemTime;
 use thiserror::Error;
+use tokio::sync::mpsc;
 
 pub mod client;
 pub mod server;
-pub mod websocket;
+pub mod quic;
+pub mod service;
 
 pub use client::ProtocolClient;
 pub use server::ProtocolServer;
-pub use websocket::{WebSocketClient, WebSocketServer};
+pub use quic::{QuicClient, QuicServer, UnisonStream};
+pub use service::{Service, RealtimeService, ServiceConfig, ServicePriority, ServiceStats, UnisonService};
 
 /// Network errors for Unison Protocol
 #[derive(Error, Debug)]
@@ -22,8 +26,8 @@ pub enum NetworkError {
     Protocol(String),
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
-    #[error("WebSocket error: {0}")]
-    WebSocket(String),
+    #[error("QUIC error: {0}")]
+    Quic(String),
     #[error("Timeout error")]
     Timeout,
     #[error("Handler not found for method: {method}")]
@@ -49,6 +53,11 @@ pub enum MessageType {
     Stream,
     StreamData,
     StreamEnd,
+    StreamError,
+    // Bidirectional streaming types
+    BidirectionalStream,
+    StreamSend,
+    StreamReceive,
     Error,
 }
 
@@ -133,4 +142,54 @@ pub trait UnisonServerExt: UnisonServer {
     fn register_handler<F>(&mut self, method: &str, handler: F)
     where 
         F: Fn(serde_json::Value) -> Result<serde_json::Value, NetworkError> + Send + Sync + 'static;
+    
+    /// Register a stream handler for a specific method
+    fn register_stream_handler<F>(&mut self, method: &str, handler: F)
+    where 
+        F: Fn(serde_json::Value) -> Pin<Box<dyn Stream<Item = Result<serde_json::Value, NetworkError>> + Send>> + Send + Sync + 'static;
+    
+    /// Register a SystemStream handler for bidirectional streaming
+    fn register_system_stream_handler<F>(&mut self, method: &str, handler: F)
+    where 
+        F: Fn(serde_json::Value, Box<dyn SystemStream>) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static;
+}
+
+/// SystemStream - Bidirectional stream trait for QUIC
+#[async_trait]
+pub trait SystemStream: Send + Sync {
+    /// Send data on the stream
+    async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError>;
+    
+    /// Receive data from the stream
+    async fn receive(&mut self) -> Result<serde_json::Value, NetworkError>;
+    
+    /// Check if stream is still active
+    fn is_active(&self) -> bool;
+    
+    /// Close the stream
+    async fn close(&mut self) -> Result<(), NetworkError>;
+    
+    /// Get stream metadata
+    fn get_handle(&self) -> StreamHandle;
+}
+
+/// Stream handle for managing bidirectional streams
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamHandle {
+    pub stream_id: u64,
+    pub method: String,
+    pub created_at: std::time::SystemTime,
+}
+
+/// Extended client trait with SystemStream support
+#[async_trait]
+pub trait UnisonClientExt: UnisonClient {
+    /// Start a bidirectional SystemStream
+    async fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> Result<Box<dyn SystemStream>, NetworkError>;
+    
+    /// List active SystemStreams
+    async fn list_system_streams(&self) -> Result<Vec<StreamHandle>, NetworkError>;
+    
+    /// Close a specific SystemStream by ID
+    async fn close_system_stream(&mut self, stream_id: u64) -> Result<(), NetworkError>;
 }

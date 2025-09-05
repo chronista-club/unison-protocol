@@ -35,3 +35,8 @@ Thumbs.db
 
 # Generated code (for development)
 /generated/
+
+# Certificates (exclude to prevent accidental commits of private keys)
+assets/certs/*.pem
+assets/certs/*.der
+!assets/certs/README.md

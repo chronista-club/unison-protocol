@@ -14,7 +14,7 @@ async fn main() -> Result<()> {
         .init();
 
     info!("🎵 Unison Protocol Ping Client Starting");
-    info!("🔌 Connecting to ws://127.0.0.1:8080...");
+    info!("🔌 Connecting to 127.0.0.1:8080 via QUIC...");
     
     // Create Unison protocol instance
     let mut protocol = UnisonProtocol::new();
@@ -25,8 +25,8 @@ async fn main() -> Result<()> {
     // Create client
     let mut client = protocol.create_client();
     
-    // Connect to server
-    client.connect("ws://127.0.0.1:8080").await?;
+    // Connect to server (QUIC uses IP:Port format)
+    client.connect("127.0.0.1:8080").await?;
     info!("✅ Connected to Unison Protocol server!");
     
     // Run Unison protocol tests
