@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use async_trait::async_trait;
 use futures_util::StreamExt;
 use quinn::{Endpoint, ServerConfig, ClientConfig, Connection, RecvStream, SendStream};
 use rustls::{ServerConfig as RustlsServerConfig, ClientConfig as RustlsClientConfig};
@@ -119,7 +118,6 @@ impl QuicClient {
     }
 }
 
-#[async_trait]
 impl Transport for QuicClient {
     async fn send(&self, message: ProtocolMessage) -> Result<()> {
         let connection_guard = self.connection.read().await;
@@ -610,7 +608,6 @@ impl UnisonStream {
     }
 }
 
-#[async_trait]
 impl SystemStream for UnisonStream {
     async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError> {
         if !self.is_active() {

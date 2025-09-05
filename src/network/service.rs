@@ -1,23 +1,21 @@
-use async_trait::async_trait;
 use std::collections::HashMap;
-use super::{SystemStream, NetworkError, StreamHandle};
+use super::{SystemStream, SystemStreamWrapper, NetworkError, StreamHandle};
 
-/// Unison Service trait - High-level service interface built on SystemStream
-#[async_trait]
+/// Unisonサービストレイト - SystemStreamをベースとした高レベルサービスインターフェース
 pub trait Service: SystemStream {
-    /// Service type identifier
+    /// サービス種別識別子
     fn service_type(&self) -> &str;
     
-    /// Service name
+    /// サービス名
     fn service_name(&self) -> &str;
     
-    /// Service metadata and configuration
+    /// サービスメタデータと設定
     fn metadata(&self) -> HashMap<String, String>;
     
-    /// Service version
+    /// サービスバージョン
     fn version(&self) -> &str { "1.0.0" }
     
-    /// Send structured data with metadata
+    /// メタデータ付き構造化データの送信
     async fn send_with_metadata(
         &mut self, 
         data: serde_json::Value,
@@ -35,7 +33,7 @@ pub trait Service: SystemStream {
         self.send(wrapped_data).await
     }
     
-    /// Receive structured data with metadata extraction
+    /// メタデータ抽出付き構造化データの受信
     async fn receive_with_metadata(&mut self) -> Result<(serde_json::Value, HashMap<String, String>), NetworkError> {
         let received = self.receive().await?;
         
@@ -48,12 +46,12 @@ pub trait Service: SystemStream {
             
             Ok((data, metadata))
         } else {
-            // Fallback for raw data
+            // 生データのフォールバック
             Ok((received, HashMap::new()))
         }
     }
     
-    /// Start service heartbeat for health monitoring
+    /// ヘルスモニタリング用サービスハートビートの開始
     async fn start_service_heartbeat(&mut self, interval_secs: u64) -> Result<(), NetworkError> {
         let heartbeat_data = serde_json::json!({
             "type": "service_heartbeat",
@@ -69,7 +67,7 @@ pub trait Service: SystemStream {
         ])).await
     }
     
-    /// Send service health ping
+    /// サービスヘルスpingの送信
     async fn service_ping(&mut self) -> Result<(), NetworkError> {
         let ping_data = serde_json::json!({
             "type": "service_ping",
@@ -84,19 +82,19 @@ pub trait Service: SystemStream {
         ])).await
     }
     
-    /// Handle service request
+    /// サービスリクエストの処理
     async fn handle_request(
         &mut self, 
         method: &str, 
         payload: serde_json::Value
     ) -> Result<serde_json::Value, NetworkError>;
     
-    /// Get service capabilities
+    /// サービス機能の取得
     fn get_capabilities(&self) -> Vec<String> {
         vec!["ping".to_string(), "heartbeat".to_string()]
     }
     
-    /// Service shutdown notification
+    /// サービス終了通知
     async fn shutdown(&mut self) -> Result<(), NetworkError> {
         let shutdown_data = serde_json::json!({
             "type": "service_shutdown",
@@ -112,10 +110,9 @@ pub trait Service: SystemStream {
     }
 }
 
-/// Extended Service with real-time capabilities
-#[async_trait]
+/// リアルタイム機能付きの拡張Service
 pub trait RealtimeService: Service {
-    /// Send time-sensitive service data with priority
+    /// 優先度付き時間感応型サービスデータの送信
     async fn send_realtime(
         &mut self, 
         method: &str,
@@ -123,17 +120,17 @@ pub trait RealtimeService: Service {
         priority: ServicePriority
     ) -> Result<(), NetworkError>;
     
-    /// Receive service data with timeout
+    /// タイムアウト付きサービスデータの受信
     async fn receive_with_timeout(
         &mut self, 
         timeout: std::time::Duration
     ) -> Result<serde_json::Value, NetworkError>;
     
-    /// Get service performance statistics
+    /// サービスパフォーマンス統計の取得
     async fn get_performance_stats(&self) -> Result<ServiceStats, NetworkError>;
 }
 
-/// Service priority levels for real-time communication
+/// リアルタイム通信のためのサービス優先度レベル
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServicePriority {
     Low = 0,
@@ -142,7 +139,7 @@ pub enum ServicePriority {
     Critical = 3,
 }
 
-/// Service performance statistics
+/// サービスパフォーマンス統計
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ServiceStats {
     pub avg_latency_ms: f64,
@@ -170,7 +167,7 @@ impl Default for ServiceStats {
     }
 }
 
-/// Service configuration for different use cases
+/// 様々な用途に対応するサービス設定
 #[derive(Debug, Clone)]
 pub struct ServiceConfig {
     pub service_name: String,
@@ -205,13 +202,13 @@ impl Default for ServiceConfig {
 /// Unison Service implementation with QUIC SystemStream
 pub struct UnisonService {
     config: ServiceConfig,
-    stream: Box<dyn SystemStream>,
+    stream: Box<SystemStreamWrapper>,
     stats: ServiceStats,
     start_time: std::time::Instant,
 }
 
 impl UnisonService {
-    pub fn new(config: ServiceConfig, stream: Box<dyn SystemStream>) -> Self {
+    pub fn new(config: ServiceConfig, stream: SystemStreamWrapper) -> Self {
         Self {
             config,
             stream,
@@ -236,7 +233,6 @@ impl UnisonService {
     }
 }
 
-#[async_trait]
 impl SystemStream for UnisonService {
     async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError> {
         self.stream.send(data).await
@@ -259,7 +255,6 @@ impl SystemStream for UnisonService {
     }
 }
 
-#[async_trait]
 impl Service for UnisonService {
     fn service_type(&self) -> &str {
         "unison-service"
@@ -325,7 +320,6 @@ impl Service for UnisonService {
     }
 }
 
-#[async_trait]
 impl RealtimeService for UnisonService {
     async fn send_realtime(
         &mut self, 

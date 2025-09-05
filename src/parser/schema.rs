@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use super::TypeRegistry;
 
@@ -134,7 +133,7 @@ impl FieldType {
                 key.to_rust_type(type_registry),
                 value.to_rust_type(type_registry)
             ),
-            FieldType::Enum(values) => {
+            FieldType::Enum(_values) => {
                 // This should be resolved to the actual enum name
                 "String".to_string()
             }

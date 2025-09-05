@@ -1,14 +1,13 @@
 use anyhow::{Context, Result};
-use async_trait::async_trait;
-use futures_util::{Stream, StreamExt};
+use futures_util::Stream;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::{ProtocolClientTrait, ProtocolMessage, MessageType, UnisonClient, NetworkError, SystemStream, UnisonClientExt};
-use super::service::{Service, UnisonService, ServiceConfig};
+use super::{ProtocolClientTrait, ProtocolMessage, MessageType, UnisonClient, NetworkError, SystemStream, SystemStreamWrapper, UnisonClientExt};
+use super::service::Service;
 
 /// Generic protocol client implementation
 pub struct ProtocolClient {
@@ -17,7 +16,6 @@ pub struct ProtocolClient {
 }
 
 /// Transport trait for underlying communication
-#[async_trait]
 pub trait Transport: Send + Sync {
     async fn send(&self, message: ProtocolMessage) -> Result<()>;
     async fn receive(&self) -> Result<ProtocolMessage>;
@@ -88,7 +86,6 @@ impl ProtocolClient {
     }
 }
 
-#[async_trait]
 impl ProtocolClientTrait for ProtocolClient {
     async fn call<TRequest, TResponse>(&self, method: &str, request: TRequest) -> Result<TResponse>
     where
@@ -194,7 +191,6 @@ fn generate_request_id() -> u64 {
     COUNTER.fetch_add(1, Ordering::SeqCst)
 }
 
-#[async_trait]
 impl UnisonClient for ProtocolClient {
     async fn connect(&mut self, url: &str) -> Result<(), NetworkError> {
         self.transport.connect(url).await
@@ -253,7 +249,6 @@ impl DummyTransport {
     }
 }
 
-#[async_trait]
 impl Transport for DummyTransport {
     async fn send(&self, _message: ProtocolMessage) -> Result<()> {
         // Dummy implementation
@@ -287,9 +282,8 @@ impl Transport for DummyTransport {
     }
 }
 
-#[async_trait]
 impl UnisonClientExt for ProtocolClient {
-    async fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> Result<Box<dyn SystemStream>, NetworkError> {
+    async fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> Result<SystemStreamWrapper, NetworkError> {
         use super::quic::UnisonStream;
         use super::StreamHandle;
         
@@ -304,7 +298,7 @@ impl UnisonClientExt for ProtocolClient {
         // Create a UnisonStream instance
         // Note: This is a placeholder implementation
         // In practice, you would get the actual QUIC connection from the transport
-        let stream = Box::new(MockSystemStream::new(handle)) as Box<dyn SystemStream>;
+        let stream = SystemStreamWrapper::new_mock(MockSystemStream::new(handle));
         
         tracing::info!("🌊 Started SystemStream for method: {}", method);
         Ok(stream)
@@ -322,7 +316,7 @@ impl UnisonClientExt for ProtocolClient {
 }
 
 /// Mock SystemStream for testing
-struct MockSystemStream {
+pub struct MockSystemStream {
     handle: super::StreamHandle,
     is_active: bool,
 }
@@ -336,7 +330,6 @@ impl MockSystemStream {
     }
 }
 
-#[async_trait]
 impl SystemStream for MockSystemStream {
     async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError> {
         tracing::info!("📤 MockSystemStream send: {}", data);

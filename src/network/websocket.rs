@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::sync::Arc;
@@ -77,7 +76,6 @@ impl WebSocketClient {
     }
 }
 
-#[async_trait]
 impl Transport for WebSocketClient {
     async fn send(&self, message: ProtocolMessage) -> Result<()> {
         let mut ws_guard = self.ws.write().await;

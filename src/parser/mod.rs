@@ -1,7 +1,5 @@
 use anyhow::{Context, Result};
-use kdl::{KdlDocument, KdlNode, KdlEntry, KdlValue};
-use indexmap::IndexMap;
-use std::collections::HashMap;
+use kdl::{KdlDocument, KdlNode, KdlValue};
 use thiserror::Error;
 
 pub mod schema;
@@ -240,7 +238,7 @@ impl SchemaParser {
             .and_then(|e| e.value().as_string())
             .context("Field type is required")?;
 
-        let mut field = Field {
+        let field = Field {
             name,
             field_type: self.parse_field_type(field_type, node)?,
             required: node.get("required")

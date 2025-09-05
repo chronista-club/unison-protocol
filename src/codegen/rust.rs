@@ -48,7 +48,6 @@ impl RustGenerator {
     fn generate_imports(&self) -> TokenStream {
         quote! {
             use serde::{Deserialize, Serialize};
-            use async_trait::async_trait;
             use anyhow::Result;
             use chrono::{DateTime, Utc};
             use uuid::Uuid;
@@ -237,7 +236,6 @@ impl RustGenerator {
         
         quote! {
             // Service trait
-            #[async_trait]
             pub trait #service_name: Send + Sync {
                 #(#methods)*
                 #(#streams)*

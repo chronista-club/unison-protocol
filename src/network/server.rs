@@ -1,5 +1,4 @@
 use anyhow::Result;
-use async_trait::async_trait;
 use futures_util::Stream;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -7,7 +6,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::{ProtocolServerTrait, ProtocolMessage, MessageType, UnisonServer, UnisonServerExt, NetworkError, SystemStream};
+use super::{ProtocolServerTrait, ProtocolMessage, MessageType, UnisonServer, UnisonServerExt, NetworkError, SystemStream, SystemStreamWrapper};
 use super::service::{Service, UnisonService, ServiceConfig};
 
 /// Server handler function types
@@ -151,10 +150,10 @@ impl ProtocolServer {
                 // This is a simplified version
                 let handlers = self.stream_handlers.read().await;
                 if let Some(_handler) = handlers.get(&message.method) {
-                    // In a real implementation, we would:
-                    // 1. Start the stream
-                    // 2. Send StreamData messages for each item
-                    // 3. Send StreamEnd when done
+                    // 実際の実装では：
+                    // 1. ストリームを開始
+                    // 2. 各アイテムに対してStreamDataメッセージを送信
+                    // 3. 完了時にStreamEndを送信
                     Ok(ProtocolMessage {
                         id: message.id,
                         method: message.method,
@@ -184,7 +183,6 @@ impl ProtocolServer {
     }
 }
 
-#[async_trait]
 impl ProtocolServerTrait for ProtocolServer {
     async fn handle_call(
         &self,
@@ -230,7 +228,6 @@ impl Default for ProtocolServer {
     }
 }
 
-#[async_trait]
 impl UnisonServer for ProtocolServer {
     async fn listen(&mut self, addr: &str) -> Result<(), NetworkError> {
         use super::quic::QuicServer;
@@ -303,7 +300,7 @@ impl UnisonServerExt for ProtocolServer {
     
     fn register_system_stream_handler<F>(&mut self, method: &str, handler: F)
     where 
-        F: Fn(serde_json::Value, Box<dyn SystemStream>) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static
+        F: Fn(serde_json::Value, SystemStreamWrapper) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static
     {
         // For now, we'll store this as a placeholder until we implement SystemStream handling
         // This is a complex operation that requires significant changes to the server architecture

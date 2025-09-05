@@ -1,11 +1,8 @@
 use anyhow::Result;
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use futures_util::Stream;
 use std::pin::Pin;
-use std::time::SystemTime;
 use thiserror::Error;
-use tokio::sync::mpsc;
 
 pub mod client;
 pub mod server;
@@ -17,7 +14,7 @@ pub use server::ProtocolServer;
 pub use quic::{QuicClient, QuicServer, UnisonStream};
 pub use service::{Service, RealtimeService, ServiceConfig, ServicePriority, ServiceStats, UnisonService};
 
-/// Network errors for Unison Protocol
+/// Unison Protocolのネットワークエラー
 #[derive(Error, Debug)]
 pub enum NetworkError {
     #[error("Connection error: {0}")]
@@ -34,7 +31,7 @@ pub enum NetworkError {
     HandlerNotFound { method: String },
 }
 
-/// Protocol message wrapper
+/// プロトコルメッセージラッパー
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolMessage {
     pub id: u64,
@@ -44,7 +41,7 @@ pub struct ProtocolMessage {
     pub payload: serde_json::Value,
 }
 
-/// Message type
+/// メッセージ種別
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageType {
@@ -54,14 +51,14 @@ pub enum MessageType {
     StreamData,
     StreamEnd,
     StreamError,
-    // Bidirectional streaming types
+    // 双方向ストリーミング種別
     BidirectionalStream,
     StreamSend,
     StreamReceive,
     Error,
 }
 
-/// Protocol error
+/// プロトコルエラー
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolError {
     pub code: i32,
@@ -69,16 +66,15 @@ pub struct ProtocolError {
     pub details: Option<serde_json::Value>,
 }
 
-/// Client trait for making protocol calls
-#[async_trait]
+/// プロトコル呼び出し用クライアントトレイト
 pub trait ProtocolClientTrait: Send + Sync {
-    /// Make a unary RPC call
+    /// 単項RPC呼び出しの実行
     async fn call<TRequest, TResponse>(&self, method: &str, request: TRequest) -> Result<TResponse>
     where
         TRequest: Serialize + Send + Sync,
         TResponse: for<'de> Deserialize<'de>;
     
-    /// Start a streaming RPC call
+    /// ストリーミングRPC呼び出しの開始
     async fn stream<TRequest, TResponse>(
         &self,
         method: &str,
@@ -89,17 +85,16 @@ pub trait ProtocolClientTrait: Send + Sync {
         TResponse: for<'de> Deserialize<'de> + Send + 'static;
 }
 
-/// Server trait for handling protocol requests
-#[async_trait]
+/// プロトコルリクエスト処理用サーバートレイト
 pub trait ProtocolServerTrait: Send + Sync {
-    /// Handle a unary RPC call
+    /// 単項RPC呼び出しの処理
     async fn handle_call(
         &self,
         method: &str,
         payload: serde_json::Value,
     ) -> Result<serde_json::Value>;
     
-    /// Handle a streaming RPC call
+    /// ストリーミングRPC呼び出しの処理
     async fn handle_stream(
         &self,
         method: &str,
@@ -107,73 +102,123 @@ pub trait ProtocolServerTrait: Send + Sync {
     ) -> Result<Pin<Box<dyn Stream<Item = Result<serde_json::Value>> + Send>>>;
 }
 
-/// Unison Protocol client trait
-#[async_trait]
+/// Unison Protocolクライアントトレイト
 pub trait UnisonClient: Send + Sync {
-    /// Connect to a Unison server
+    /// Unisonサーバーへの接続
     async fn connect(&mut self, url: &str) -> Result<(), NetworkError>;
     
-    /// Make a remote procedure call
+    /// リモートプロシージャ呼び出しの実行
     async fn call(&mut self, method: &str, payload: serde_json::Value) -> Result<serde_json::Value, NetworkError>;
     
-    /// Disconnect from the server
+    /// サーバーからの切断
     async fn disconnect(&mut self) -> Result<(), NetworkError>;
     
-    /// Check if client is connected
+    /// クライアント接続状態の確認
     fn is_connected(&self) -> bool;
 }
 
-/// Unison Protocol server trait (dyn-compatible)
-#[async_trait]
+/// Unison Protocolサーバートレイト（dyn互換）
 pub trait UnisonServer: Send + Sync {
-    /// Start listening for connections
+    /// 接続の待ち受け開始
     async fn listen(&mut self, addr: &str) -> Result<(), NetworkError>;
     
-    /// Stop the server
+    /// サーバーの停止
     async fn stop(&mut self) -> Result<(), NetworkError>;
     
-    /// Check if server is running
+    /// サーバー実行状態の確認
     fn is_running(&self) -> bool;
 }
 
-/// Handler registration trait (non-dyn-compatible due to generics)
+/// ハンドラー登録トレイト（ジェネリクスのためdyn非互換）
 pub trait UnisonServerExt: UnisonServer {
-    /// Register a handler for a specific method
+    /// 特定メソッド用ハンドラーの登録
     fn register_handler<F>(&mut self, method: &str, handler: F)
     where 
         F: Fn(serde_json::Value) -> Result<serde_json::Value, NetworkError> + Send + Sync + 'static;
     
-    /// Register a stream handler for a specific method
+    /// 特定メソッド用ストリームハンドラーの登録
     fn register_stream_handler<F>(&mut self, method: &str, handler: F)
     where 
         F: Fn(serde_json::Value) -> Pin<Box<dyn Stream<Item = Result<serde_json::Value, NetworkError>> + Send>> + Send + Sync + 'static;
     
-    /// Register a SystemStream handler for bidirectional streaming
+    /// 双方向ストリーミング用SystemStreamハンドラーの登録
     fn register_system_stream_handler<F>(&mut self, method: &str, handler: F)
     where 
-        F: Fn(serde_json::Value, Box<dyn SystemStream>) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static;
+        F: Fn(serde_json::Value, SystemStreamWrapper) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static;
 }
 
-/// SystemStream - Bidirectional stream trait for QUIC
-#[async_trait]
+/// SystemStream - QUIC用双方向ストリームトレイト
 pub trait SystemStream: Send + Sync {
-    /// Send data on the stream
+    /// ストリームでのデータ送信
     async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError>;
     
-    /// Receive data from the stream
+    /// ストリームからのデータ受信
     async fn receive(&mut self) -> Result<serde_json::Value, NetworkError>;
     
-    /// Check if stream is still active
+    /// ストリーム稼働状態の確認
     fn is_active(&self) -> bool;
     
-    /// Close the stream
+    /// ストリームの終了
     async fn close(&mut self) -> Result<(), NetworkError>;
     
-    /// Get stream metadata
+    /// ストリームメタデータの取得
     fn get_handle(&self) -> StreamHandle;
 }
 
-/// Stream handle for managing bidirectional streams
+/// SystemStreamのenum wrapper - dyn互換性のため
+pub enum SystemStreamWrapper {
+    Quic(crate::network::quic::UnisonStream),
+    Mock(crate::network::client::MockSystemStream),
+}
+
+impl SystemStreamWrapper {
+    pub fn new_quic(stream: crate::network::quic::UnisonStream) -> Self {
+        Self::Quic(stream)
+    }
+    
+    pub fn new_mock(mock: crate::network::client::MockSystemStream) -> Self {
+        Self::Mock(mock)
+    }
+}
+
+impl SystemStream for SystemStreamWrapper {
+    async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError> {
+        match self {
+            Self::Quic(stream) => stream.send(data).await,
+            Self::Mock(mock) => mock.send(data).await,
+        }
+    }
+    
+    async fn receive(&mut self) -> Result<serde_json::Value, NetworkError> {
+        match self {
+            Self::Quic(stream) => stream.receive().await,
+            Self::Mock(mock) => mock.receive().await,
+        }
+    }
+    
+    fn is_active(&self) -> bool {
+        match self {
+            Self::Quic(stream) => stream.is_active(),
+            Self::Mock(mock) => mock.is_active(),
+        }
+    }
+    
+    async fn close(&mut self) -> Result<(), NetworkError> {
+        match self {
+            Self::Quic(stream) => stream.close().await,
+            Self::Mock(mock) => mock.close().await,
+        }
+    }
+    
+    fn get_handle(&self) -> StreamHandle {
+        match self {
+            Self::Quic(stream) => stream.get_handle(),
+            Self::Mock(mock) => mock.get_handle(),
+        }
+    }
+}
+
+/// 双方向ストリーム管理用ストリームハンドル
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamHandle {
     pub stream_id: u64,
@@ -181,15 +226,14 @@ pub struct StreamHandle {
     pub created_at: std::time::SystemTime,
 }
 
-/// Extended client trait with SystemStream support
-#[async_trait]
+/// SystemStreamサポート付き拡張クライアントトレイト
 pub trait UnisonClientExt: UnisonClient {
-    /// Start a bidirectional SystemStream
-    async fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> Result<Box<dyn SystemStream>, NetworkError>;
+    /// 双方向SystemStreamの開始
+    async fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> Result<SystemStreamWrapper, NetworkError>;
     
-    /// List active SystemStreams
+    /// アクティブなSystemStreamの一覧
     async fn list_system_streams(&self) -> Result<Vec<StreamHandle>, NetworkError>;
     
-    /// Close a specific SystemStream by ID
+    /// ID指定によるSystemStreamの終了
     async fn close_system_stream(&mut self, stream_id: u64) -> Result<(), NetworkError>;
 }

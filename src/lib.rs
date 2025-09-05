@@ -114,8 +114,8 @@ impl UnisonProtocol {
     }
     
     /// Create a new Unison client
-    pub fn create_client(&self) -> Box<dyn UnisonClient> {
-        Box::new(ProtocolClient::new_default())
+    pub fn create_client(&self) -> ProtocolClient {
+        ProtocolClient::new_default()
     }
     
     /// Create a new Unison server
