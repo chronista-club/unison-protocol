@@ -211,7 +211,7 @@ impl UnisonService {
     pub fn new(config: ServiceConfig, stream: SystemStreamWrapper) -> Self {
         Self {
             config,
-            stream,
+            stream: Box::new(stream),
             stats: ServiceStats::default(),
             start_time: std::time::Instant::now(),
         }

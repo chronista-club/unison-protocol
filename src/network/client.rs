@@ -6,13 +6,67 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::{ProtocolClientTrait, ProtocolMessage, MessageType, UnisonClient, NetworkError, SystemStream, SystemStreamWrapper, UnisonClientExt};
+use super::{ProtocolClientTrait, ProtocolMessage, MessageType, UnisonClient, NetworkError, SystemStream, SystemStreamWrapper, ServiceWrapper, UnisonClientExt};
 use super::service::Service;
+use super::quic::QuicClient;
+
+/// Transport wrapper for dyn compatibility
+pub enum TransportWrapper {
+    Dummy(DummyTransport),
+    Quic(QuicClient),
+}
+
+impl TransportWrapper {
+    pub fn new_dummy() -> Self {
+        Self::Dummy(DummyTransport::new())
+    }
+    
+    pub fn new_quic() -> Result<Self> {
+        Ok(Self::Quic(QuicClient::new()?))
+    }
+}
+
+impl Transport for TransportWrapper {
+    async fn send(&self, message: ProtocolMessage) -> Result<()> {
+        match self {
+            Self::Dummy(transport) => transport.send(message).await,
+            Self::Quic(transport) => transport.send(message).await,
+        }
+    }
+    
+    async fn receive(&self) -> Result<ProtocolMessage> {
+        match self {
+            Self::Dummy(transport) => transport.receive().await,
+            Self::Quic(transport) => transport.receive().await,
+        }
+    }
+    
+    async fn connect(&self, url: &str) -> Result<()> {
+        match self {
+            Self::Dummy(transport) => transport.connect(url).await,
+            Self::Quic(transport) => transport.connect(url).await,
+        }
+    }
+    
+    async fn disconnect(&self) -> Result<()> {
+        match self {
+            Self::Dummy(transport) => transport.disconnect().await,
+            Self::Quic(transport) => transport.disconnect().await,
+        }
+    }
+    
+    async fn is_connected(&self) -> bool {
+        match self {
+            Self::Dummy(transport) => transport.is_connected().await,
+            Self::Quic(transport) => transport.is_connected().await,
+        }
+    }
+}
 
 /// Generic protocol client implementation
 pub struct ProtocolClient {
-    transport: Arc<dyn Transport + Send + Sync>,
-    services: Arc<RwLock<HashMap<String, Box<dyn Service>>>>,
+    transport: Arc<TransportWrapper>,
+    services: Arc<RwLock<HashMap<String, ServiceWrapper>>>,
 }
 
 /// Transport trait for underlying communication
@@ -25,33 +79,33 @@ pub trait Transport: Send + Sync {
 }
 
 impl ProtocolClient {
-    pub fn new(transport: Arc<dyn Transport + Send + Sync>) -> Self {
+    pub fn new(transport: TransportWrapper) -> Self {
         Self { 
-            transport,
+            transport: Arc::new(transport),
             services: Arc::new(RwLock::new(HashMap::new())),
         }
     }
     
     /// Create a new client with default QUIC transport
     pub fn new_quic() -> Result<Self> {
-        use super::quic::QuicClient;
-        let transport = Arc::new(QuicClient::new()?);
+        let transport = TransportWrapper::new_quic()?;
         Ok(Self { 
-            transport,
+            transport: Arc::new(transport),
             services: Arc::new(RwLock::new(HashMap::new())),
         })
     }
     
     /// Create a new client with default (dummy) transport
     pub fn new_default() -> Self {
+        let transport = TransportWrapper::new_dummy();
         Self { 
-            transport: Arc::new(DummyTransport::new()),
+            transport: Arc::new(transport),
             services: Arc::new(RwLock::new(HashMap::new())),
         }
     }
     
     /// Register a Service instance with the client
-    pub async fn register_service(&self, service: Box<dyn Service>) {
+    pub async fn register_service(&self, service: ServiceWrapper) {
         let service_name = service.service_name().to_string();
         let mut services = self.services.write().await;
         services.insert(service_name, service);
@@ -237,12 +291,12 @@ impl UnisonClient for ProtocolClient {
 }
 
 /// Dummy transport for testing/development
-struct DummyTransport {
+pub struct DummyTransport {
     connected: Arc<RwLock<bool>>,
 }
 
 impl DummyTransport {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             connected: Arc::new(RwLock::new(false)),
         }
@@ -283,8 +337,8 @@ impl Transport for DummyTransport {
 }
 
 impl UnisonClientExt for ProtocolClient {
-    async fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> Result<SystemStreamWrapper, NetworkError> {
-        use super::quic::UnisonStream;
+    async fn start_system_stream(&mut self, method: &str, _payload: serde_json::Value) -> Result<SystemStreamWrapper, NetworkError> {
+        // use super::quic::UnisonStream;
         use super::StreamHandle;
         
         // For now, create a mock SystemStream

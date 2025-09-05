@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::{ProtocolServerTrait, ProtocolMessage, MessageType, UnisonServer, UnisonServerExt, NetworkError, SystemStream, SystemStreamWrapper};
+use super::{ProtocolServerTrait, ProtocolMessage, MessageType, UnisonServer, UnisonServerExt, NetworkError, SystemStream, SystemStreamWrapper, ServiceWrapper};
 use super::service::{Service, UnisonService, ServiceConfig};
 
 /// Server handler function types
@@ -39,7 +39,7 @@ pub struct ProtocolServer {
     call_handlers: Arc<RwLock<HashMap<String, CallHandler>>>,
     stream_handlers: Arc<RwLock<HashMap<String, StreamHandler>>>,
     unison_handlers: Arc<RwLock<HashMap<String, UnisonHandler>>>,
-    services: Arc<RwLock<HashMap<String, Box<dyn Service>>>>,
+    services: Arc<RwLock<HashMap<String, ServiceWrapper>>>,
     running: Arc<RwLock<bool>>,
 }
 
@@ -55,7 +55,7 @@ impl ProtocolServer {
     }
     
     /// Register a Service instance with the server
-    pub async fn register_service(&self, service: Box<dyn Service>) {
+    pub async fn register_service(&self, service: ServiceWrapper) {
         let service_name = service.service_name().to_string();
         let mut services = self.services.write().await;
         services.insert(service_name, service);
@@ -239,7 +239,7 @@ impl UnisonServer for ProtocolServer {
         }
         
         // Create QUIC server with self as the protocol handler
-        let protocol_server: Arc<dyn ProtocolServerTrait> = Arc::new(ProtocolServer {
+        let protocol_server = Arc::new(ProtocolServer {
             call_handlers: Arc::clone(&self.call_handlers),
             stream_handlers: Arc::clone(&self.stream_handlers),
             unison_handlers: Arc::clone(&self.unison_handlers),
@@ -313,7 +313,7 @@ impl UnisonServerExt for ProtocolServer {
 /// Service management extension for ProtocolServer
 impl ProtocolServer {
     /// Register a service with automatic startup  
-    pub async fn register_and_start_service(&self, mut service: Box<dyn Service>) -> Result<String, NetworkError> {
+    pub async fn register_and_start_service(&self, mut service: ServiceWrapper) -> Result<String, NetworkError> {
         let service_name = service.service_name().to_string();
         
         // Start service heartbeat if configured  

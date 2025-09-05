@@ -189,12 +189,12 @@ impl Transport for QuicClient {
 
 /// QUIC server implementation
 pub struct QuicServer {
-    server: Arc<dyn ProtocolServerTrait>,
+    server: Arc<ProtocolServer>,
     endpoint: Option<Endpoint>,
 }
 
 impl QuicServer {
-    pub fn new(server: Arc<dyn ProtocolServerTrait>) -> Self {
+    pub fn new(server: Arc<ProtocolServer>) -> Self {
         Self {
             server,
             endpoint: None,
@@ -352,7 +352,7 @@ impl QuicServer {
 
 async fn handle_connection(
     connection: Connection,
-    server: Arc<dyn ProtocolServerTrait>,
+    server: Arc<ProtocolServer>,
 ) -> Result<()> {
     loop {
         match connection.accept_uni().await {
