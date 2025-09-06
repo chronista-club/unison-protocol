@@ -13,7 +13,7 @@ use tokio::sync::{mpsc, RwLock, Mutex};
 use tracing::{debug, error, info, warn};
 
 use super::{
-    client::Transport, server::ProtocolServer, ProtocolMessage, ProtocolServerTrait,
+    server::ProtocolServer, ProtocolMessage, ProtocolServerTrait,
     NetworkError, SystemStream, StreamHandle, MessageType,
 };
 
@@ -118,8 +118,8 @@ impl QuicClient {
     }
 }
 
-impl Transport for QuicClient {
-    async fn send(&self, message: ProtocolMessage) -> Result<()> {
+impl QuicClient {
+    pub async fn send(&self, message: ProtocolMessage) -> Result<()> {
         let connection_guard = self.connection.read().await;
         if let Some(connection) = connection_guard.as_ref() {
             let mut send_stream = connection.open_uni().await
@@ -137,7 +137,7 @@ impl Transport for QuicClient {
         }
     }
     
-    async fn receive(&self) -> Result<ProtocolMessage> {
+    pub async fn receive(&self) -> Result<ProtocolMessage> {
         let mut rx_guard = self.rx.write().await;
         if let Some(rx) = rx_guard.as_mut() {
             rx.recv().await
@@ -147,7 +147,7 @@ impl Transport for QuicClient {
         }
     }
     
-    async fn connect(&self, url: &str) -> Result<()> {
+    pub async fn connect(&self, url: &str) -> Result<()> {
         // Parse URL to extract host and port
         let addr: SocketAddr = url.parse()
             .context("Failed to parse server address")?;
@@ -169,7 +169,7 @@ impl Transport for QuicClient {
         Ok(())
     }
     
-    async fn disconnect(&self) -> Result<()> {
+    pub async fn disconnect(&self) -> Result<()> {
         let mut connection_guard = self.connection.write().await;
         if let Some(connection) = connection_guard.take() {
             connection.close(quinn::VarInt::from_u32(0), b"client disconnect");
@@ -177,7 +177,7 @@ impl Transport for QuicClient {
         Ok(())
     }
     
-    async fn is_connected(&self) -> bool {
+    pub async fn is_connected(&self) -> bool {
         let connection_guard = self.connection.read().await;
         if let Some(connection) = connection_guard.as_ref() {
             !connection.close_reason().is_some()
@@ -187,7 +187,7 @@ impl Transport for QuicClient {
     }
 }
 
-/// QUIC server implementation
+/// QUICサーバー実装
 pub struct QuicServer {
     server: Arc<ProtocolServer>,
     endpoint: Option<Endpoint>,
@@ -201,7 +201,7 @@ impl QuicServer {
         }
     }
 
-    /// Generate self-signed certificate for QUIC/TLS 1.3 (optimized for production use)
+    /// QUIC/TLS 1.3用の自己署名証明書を生成（本番環境使用に最適化）
     pub fn generate_self_signed_cert() -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         let subject_alt_names = vec![
             "localhost".to_string(),
@@ -219,7 +219,7 @@ impl QuicServer {
         ))
     }
     
-    /// Load certificate from external files (for production deployment)
+    /// 外部ファイルから証明書を読み込み（本番環境デプロイ用）
     pub fn load_cert_from_files(cert_path: &str, key_path: &str) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         let cert_pem = std::fs::read_to_string(cert_path)?;
         let key_der = std::fs::read(key_path)?;
@@ -237,7 +237,7 @@ impl QuicServer {
         Ok((certs, private_key.clone_key()))
     }
     
-    /// Load certificate from embedded assets (rust-embed)
+    /// 埋め込みアセットから証明書を読み込み（rust-embed）
     pub fn load_cert_embedded() -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         // Try to load embedded certificate files
         let cert_data = EmbeddedCerts::get("cert.pem")
@@ -486,7 +486,7 @@ async fn send_response(connection: Connection, message: ProtocolMessage) -> Resu
     Ok(())
 }
 
-/// Custom certificate verifier that skips verification (for testing only)
+/// 検証をスキップするカスタム証明書検証器（テスト専用）
 #[derive(Debug)]
 pub struct SkipServerVerification;
 
@@ -540,7 +540,7 @@ impl rustls::client::danger::ServerCertVerifier for SkipServerVerification {
     }
 }
 
-/// Unison Stream - QUIC bidirectional stream implementation
+/// Unison Stream - QUIC双方向ストリーム実装
 pub struct UnisonStream {
     stream_id: u64,
     method: String,
@@ -582,7 +582,7 @@ impl UnisonStream {
         })
     }
     
-    /// Create from existing streams (server-side)
+    /// 既存のストリームから作成（サーバー側）
     pub fn from_streams(
         stream_id: u64,
         method: String,

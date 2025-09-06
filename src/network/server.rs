@@ -6,10 +6,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::{ProtocolServerTrait, ProtocolMessage, MessageType, UnisonServer, UnisonServerExt, NetworkError, SystemStream, SystemStreamWrapper, ServiceWrapper};
+use super::{ProtocolServerTrait, ProtocolMessage, MessageType, UnisonServer, UnisonServerExt, NetworkError, SystemStream};
 use super::service::{Service, UnisonService, ServiceConfig};
 
-/// Server handler function types
+/// サーバーハンドラー関数型
 type CallHandler = Arc<
     dyn Fn(Value) -> Pin<Box<dyn futures_util::Future<Output = Result<Value>> + Send>>
         + Send
@@ -29,17 +29,17 @@ type StreamHandler = Arc<
         + Sync,
 >;
 
-/// Unison handler type for simple handlers
+/// シンプルハンドラー用のUnisonハンドラー型
 type UnisonHandler = Arc<
     dyn Fn(serde_json::Value) -> Result<serde_json::Value, NetworkError> + Send + Sync
 >;
 
-/// Protocol server implementation
+/// プロトコルサーバー実装
 pub struct ProtocolServer {
     call_handlers: Arc<RwLock<HashMap<String, CallHandler>>>,
     stream_handlers: Arc<RwLock<HashMap<String, StreamHandler>>>,
     unison_handlers: Arc<RwLock<HashMap<String, UnisonHandler>>>,
-    services: Arc<RwLock<HashMap<String, ServiceWrapper>>>,
+    services: Arc<RwLock<HashMap<String, crate::network::service::UnisonService>>>,
     running: Arc<RwLock<bool>>,
 }
 
@@ -54,20 +54,20 @@ impl ProtocolServer {
         }
     }
     
-    /// Register a Service instance with the server
-    pub async fn register_service(&self, service: ServiceWrapper) {
+    /// サーバーにサービスインスタンスを登録
+    pub async fn register_service(&self, service: crate::network::service::UnisonService) {
         let service_name = service.service_name().to_string();
         let mut services = self.services.write().await;
         services.insert(service_name, service);
     }
     
-    /// Get registered services list
+    /// 登録されたサービスリストを取得
     pub async fn list_services(&self) -> Vec<String> {
         let services = self.services.read().await;
         services.keys().cloned().collect()
     }
     
-    /// Handle service request by routing to registered service
+    /// 登録されたサービスへのルーティングによるサービスリクエストの処理
     pub async fn handle_service_request(&self, service_name: &str, method: &str, payload: serde_json::Value) -> Result<serde_json::Value> {
         let mut services = self.services.write().await;
         if let Some(service) = services.get_mut(service_name) {
@@ -78,7 +78,7 @@ impl ProtocolServer {
         }
     }
     
-    /// Register a call handler
+    /// 呼び出しハンドラーを登録
     pub async fn register_call_handler<F, Fut>(&self, method: &str, handler: F)
     where
         F: Fn(Value) -> Fut + Send + Sync + 'static,
@@ -92,7 +92,7 @@ impl ProtocolServer {
         handlers.insert(method.to_string(), handler);
     }
     
-    /// Register a stream handler
+    /// ストリームハンドラーを登録
     pub async fn register_stream_handler<F, Fut, S>(&self, method: &str, handler: F)
     where
         F: Fn(Value) -> Fut + Send + Sync + 'static,
@@ -112,7 +112,7 @@ impl ProtocolServer {
         handlers.insert(method.to_string(), wrapped_handler);
     }
     
-    /// Process an incoming message
+    /// 入力メッセージを処理
     pub async fn process_message(&self, message: ProtocolMessage) -> Result<ProtocolMessage> {
         match message.msg_type {
             MessageType::Request => {
@@ -189,7 +189,7 @@ impl ProtocolServerTrait for ProtocolServer {
         method: &str,
         payload: serde_json::Value,
     ) -> Result<serde_json::Value> {
-        // First try unison_handlers (registered via register_handler)
+        // まずunison_handlers（register_handlerで登録）を試行
         let unison_handlers = self.unison_handlers.read().await;
         if let Some(handler) = unison_handlers.get(method) {
             match handler(payload) {
@@ -197,7 +197,7 @@ impl ProtocolServerTrait for ProtocolServer {
                 Err(e) => Err(anyhow::anyhow!("Handler error: {}", e))
             }
         } else {
-            // Fallback to call_handlers
+            // call_handlersへフォールバック
             drop(unison_handlers);
             let handlers = self.call_handlers.read().await;
             if let Some(handler) = handlers.get(method) {
@@ -232,13 +232,13 @@ impl UnisonServer for ProtocolServer {
     async fn listen(&mut self, addr: &str) -> Result<(), NetworkError> {
         use super::quic::QuicServer;
         
-        // Set running state
+        // 実行状態を設定
         {
             let mut running = self.running.write().await;
             *running = true;
         }
         
-        // Create QUIC server with self as the protocol handler
+        // プロトコルハンドラーとして自分自身を使用してQUICサーバーを作成
         let protocol_server = Arc::new(ProtocolServer {
             call_handlers: Arc::clone(&self.call_handlers),
             stream_handlers: Arc::clone(&self.stream_handlers),
@@ -300,7 +300,7 @@ impl UnisonServerExt for ProtocolServer {
     
     fn register_system_stream_handler<F>(&mut self, method: &str, handler: F)
     where 
-        F: Fn(serde_json::Value, SystemStreamWrapper) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static
+        F: Fn(serde_json::Value, crate::network::quic::UnisonStream) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static
     {
         // For now, we'll store this as a placeholder until we implement SystemStream handling
         // This is a complex operation that requires significant changes to the server architecture
@@ -310,23 +310,23 @@ impl UnisonServerExt for ProtocolServer {
     }
 }
 
-/// Service management extension for ProtocolServer
+/// ProtocolServerのサービス管理拡張
 impl ProtocolServer {
-    /// Register a service with automatic startup  
-    pub async fn register_and_start_service(&self, mut service: ServiceWrapper) -> Result<String, NetworkError> {
+    /// 自動起動でサービスを登録  
+    pub async fn register_and_start_service(&self, mut service: crate::network::service::UnisonService) -> Result<String, NetworkError> {
         let service_name = service.service_name().to_string();
         
-        // Start service heartbeat if configured  
+        // 設定されている場合はサービスハートビートを開始  
         service.start_service_heartbeat(30).await?;
         
-        // Register service
+        // サービスを登録
         self.register_service(service).await;
         
         tracing::info!("🎵 Service '{}' registered and started", service_name);
         Ok(service_name)
     }
     
-    /// Shutdown all services gracefully
+    /// すべてのサービスを正常に停止
     pub async fn shutdown_all_services(&self) -> Result<(), NetworkError> {
         let mut services = self.services.write().await;
         

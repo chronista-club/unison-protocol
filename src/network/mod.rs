@@ -144,7 +144,7 @@ pub trait UnisonServerExt: UnisonServer {
     /// 双方向ストリーミング用SystemStreamハンドラーの登録
     fn register_system_stream_handler<F>(&mut self, method: &str, handler: F)
     where 
-        F: Fn(serde_json::Value, SystemStreamWrapper) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static;
+        F: Fn(serde_json::Value, crate::network::quic::UnisonStream) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static;
 }
 
 /// SystemStream - QUIC用双方向ストリームトレイト
@@ -165,171 +165,9 @@ pub trait SystemStream: Send + Sync {
     fn get_handle(&self) -> StreamHandle;
 }
 
-/// SystemStreamのenum wrapper - dyn互換性のため
-pub enum SystemStreamWrapper {
-    Quic(crate::network::quic::UnisonStream),
-    Mock(crate::network::client::MockSystemStream),
-}
+// SystemStreamWrapper削除 - UnisonStreamを直接使用
 
-impl SystemStreamWrapper {
-    pub fn new_quic(stream: crate::network::quic::UnisonStream) -> Self {
-        Self::Quic(stream)
-    }
-    
-    pub fn new_mock(mock: crate::network::client::MockSystemStream) -> Self {
-        Self::Mock(mock)
-    }
-}
-
-impl SystemStream for SystemStreamWrapper {
-    async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError> {
-        match self {
-            Self::Quic(stream) => stream.send(data).await,
-            Self::Mock(mock) => mock.send(data).await,
-        }
-    }
-    
-    async fn receive(&mut self) -> Result<serde_json::Value, NetworkError> {
-        match self {
-            Self::Quic(stream) => stream.receive().await,
-            Self::Mock(mock) => mock.receive().await,
-        }
-    }
-    
-    fn is_active(&self) -> bool {
-        match self {
-            Self::Quic(stream) => stream.is_active(),
-            Self::Mock(mock) => mock.is_active(),
-        }
-    }
-    
-    async fn close(&mut self) -> Result<(), NetworkError> {
-        match self {
-            Self::Quic(stream) => stream.close().await,
-            Self::Mock(mock) => mock.close().await,
-        }
-    }
-    
-    fn get_handle(&self) -> StreamHandle {
-        match self {
-            Self::Quic(stream) => stream.get_handle(),
-            Self::Mock(mock) => mock.get_handle(),
-        }
-    }
-}
-
-/// ServiceのWrapper - dyn互換性のため
-pub enum ServiceWrapper {
-    Unison(crate::network::service::UnisonService),
-}
-
-impl ServiceWrapper {
-    pub fn new_unison(service: crate::network::service::UnisonService) -> Self {
-        Self::Unison(service)
-    }
-}
-
-impl service::Service for ServiceWrapper {
-    fn service_type(&self) -> &str {
-        match self {
-            Self::Unison(service) => service.service_type(),
-        }
-    }
-    
-    fn service_name(&self) -> &str {
-        match self {
-            Self::Unison(service) => service.service_name(),
-        }
-    }
-    
-    fn version(&self) -> &str {
-        match self {
-            Self::Unison(service) => service.version(),
-        }
-    }
-    
-    fn metadata(&self) -> std::collections::HashMap<String, String> {
-        match self {
-            Self::Unison(service) => service.metadata(),
-        }
-    }
-    
-    async fn send_with_metadata(
-        &mut self,
-        data: serde_json::Value,
-        metadata: std::collections::HashMap<String, String>,
-    ) -> Result<(), NetworkError> {
-        match self {
-            Self::Unison(service) => service.send_with_metadata(data, metadata).await,
-        }
-    }
-
-    async fn handle_request(
-        &mut self, 
-        method: &str, 
-        payload: serde_json::Value
-    ) -> Result<serde_json::Value, NetworkError> {
-        match self {
-            Self::Unison(service) => service.handle_request(method, payload).await,
-        }
-    }
-
-    async fn receive_with_metadata(&mut self) -> Result<(serde_json::Value, std::collections::HashMap<String, String>), NetworkError> {
-        match self {
-            Self::Unison(service) => service.receive_with_metadata().await,
-        }
-    }
-
-    async fn service_ping(&mut self) -> Result<(), NetworkError> {
-        match self {
-            Self::Unison(service) => service.service_ping().await,
-        }
-    }
-
-    async fn start_service_heartbeat(&mut self, interval_secs: u64) -> Result<(), NetworkError> {
-        match self {
-            Self::Unison(service) => service.start_service_heartbeat(interval_secs).await,
-        }
-    }
-
-    async fn shutdown(&mut self) -> Result<(), NetworkError> {
-        match self {
-            Self::Unison(service) => service.shutdown().await,
-        }
-    }
-}
-
-impl SystemStream for ServiceWrapper {
-    async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError> {
-        match self {
-            Self::Unison(service) => service.send(data).await,
-        }
-    }
-    
-    async fn receive(&mut self) -> Result<serde_json::Value, NetworkError> {
-        match self {
-            Self::Unison(service) => service.receive().await,
-        }
-    }
-    
-    fn is_active(&self) -> bool {
-        match self {
-            Self::Unison(service) => service.is_active(),
-        }
-    }
-    
-    async fn close(&mut self) -> Result<(), NetworkError> {
-        match self {
-            Self::Unison(service) => service.close().await,
-        }
-    }
-    
-    fn get_handle(&self) -> StreamHandle {
-        match self {
-            Self::Unison(service) => service.get_handle(),
-        }
-    }
-}
+// ServiceWrapper削除 - UnisonServiceを直接使用
 
 /// 双方向ストリーム管理用ストリームハンドル
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -342,7 +180,7 @@ pub struct StreamHandle {
 /// SystemStreamサポート付き拡張クライアントトレイト
 pub trait UnisonClientExt: UnisonClient {
     /// 双方向SystemStreamの開始
-    async fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> Result<SystemStreamWrapper, NetworkError>;
+    async fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> Result<crate::network::quic::UnisonStream, NetworkError>;
     
     /// アクティブなSystemStreamの一覧
     async fn list_system_streams(&self) -> Result<Vec<StreamHandle>, NetworkError>;

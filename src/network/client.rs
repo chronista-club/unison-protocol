@@ -6,106 +6,39 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::{ProtocolClientTrait, ProtocolMessage, MessageType, UnisonClient, NetworkError, SystemStream, SystemStreamWrapper, ServiceWrapper, UnisonClientExt};
+use super::{ProtocolClientTrait, ProtocolMessage, MessageType, UnisonClient, NetworkError, SystemStream, UnisonClientExt};
 use super::service::Service;
 use super::quic::QuicClient;
 
-/// Transport wrapper for dyn compatibility
-pub enum TransportWrapper {
-    Dummy(DummyTransport),
-    Quic(QuicClient),
-}
+// TransportWrapper removed - using QuicClient directly
 
-impl TransportWrapper {
-    pub fn new_dummy() -> Self {
-        Self::Dummy(DummyTransport::new())
-    }
-    
-    pub fn new_quic() -> Result<Self> {
-        Ok(Self::Quic(QuicClient::new()?))
-    }
-}
-
-impl Transport for TransportWrapper {
-    async fn send(&self, message: ProtocolMessage) -> Result<()> {
-        match self {
-            Self::Dummy(transport) => transport.send(message).await,
-            Self::Quic(transport) => transport.send(message).await,
-        }
-    }
-    
-    async fn receive(&self) -> Result<ProtocolMessage> {
-        match self {
-            Self::Dummy(transport) => transport.receive().await,
-            Self::Quic(transport) => transport.receive().await,
-        }
-    }
-    
-    async fn connect(&self, url: &str) -> Result<()> {
-        match self {
-            Self::Dummy(transport) => transport.connect(url).await,
-            Self::Quic(transport) => transport.connect(url).await,
-        }
-    }
-    
-    async fn disconnect(&self) -> Result<()> {
-        match self {
-            Self::Dummy(transport) => transport.disconnect().await,
-            Self::Quic(transport) => transport.disconnect().await,
-        }
-    }
-    
-    async fn is_connected(&self) -> bool {
-        match self {
-            Self::Dummy(transport) => transport.is_connected().await,
-            Self::Quic(transport) => transport.is_connected().await,
-        }
-    }
-}
-
-/// Generic protocol client implementation
+/// QUIC protocol client implementation
 pub struct ProtocolClient {
-    transport: Arc<TransportWrapper>,
-    services: Arc<RwLock<HashMap<String, ServiceWrapper>>>,
+    transport: Arc<QuicClient>,
+    services: Arc<RwLock<HashMap<String, crate::network::service::UnisonService>>>,
 }
 
-/// Transport trait for underlying communication
-pub trait Transport: Send + Sync {
-    async fn send(&self, message: ProtocolMessage) -> Result<()>;
-    async fn receive(&self) -> Result<ProtocolMessage>;
-    async fn connect(&self, url: &str) -> Result<()>;
-    async fn disconnect(&self) -> Result<()>;
-    async fn is_connected(&self) -> bool;
-}
+// Transport trait removed - using direct implementation on TransportWrapper
 
 impl ProtocolClient {
-    pub fn new(transport: TransportWrapper) -> Self {
+    pub fn new(transport: QuicClient) -> Self {
         Self { 
             transport: Arc::new(transport),
             services: Arc::new(RwLock::new(HashMap::new())),
         }
     }
     
-    /// Create a new client with default QUIC transport
-    pub fn new_quic() -> Result<Self> {
-        let transport = TransportWrapper::new_quic()?;
+    /// Create a new client with QUIC transport
+    pub fn new_default() -> Result<Self> {
+        let transport = QuicClient::new()?;
         Ok(Self { 
             transport: Arc::new(transport),
             services: Arc::new(RwLock::new(HashMap::new())),
         })
     }
     
-    /// Create a new client with default (dummy) transport
-    pub fn new_default() -> Self {
-        let transport = TransportWrapper::new_dummy();
-        Self { 
-            transport: Arc::new(transport),
-            services: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-    
     /// Register a Service instance with the client
-    pub async fn register_service(&self, service: ServiceWrapper) {
+    pub async fn register_service(&self, service: crate::network::service::UnisonService) {
         let service_name = service.service_name().to_string();
         let mut services = self.services.write().await;
         services.insert(service_name, service);
@@ -285,76 +218,29 @@ impl UnisonClient for ProtocolClient {
     }
     
     fn is_connected(&self) -> bool {
-        // This would need to be synchronous in the trait
-        false // Simplified for now
+        // これはトレイトで同期的である必要があります
+        false // 今のところ簡略化
     }
 }
 
-/// Dummy transport for testing/development
-pub struct DummyTransport {
-    connected: Arc<RwLock<bool>>,
-}
-
-impl DummyTransport {
-    pub fn new() -> Self {
-        Self {
-            connected: Arc::new(RwLock::new(false)),
-        }
-    }
-}
-
-impl Transport for DummyTransport {
-    async fn send(&self, _message: ProtocolMessage) -> Result<()> {
-        // Dummy implementation
-        Ok(())
-    }
-    
-    async fn receive(&self) -> Result<ProtocolMessage> {
-        // Dummy implementation - returns a ping response
-        Ok(ProtocolMessage {
-            id: 1,
-            method: "pong".to_string(),
-            msg_type: MessageType::Response,
-            payload: serde_json::json!({"message": "pong"}),
-        })
-    }
-    
-    async fn connect(&self, _url: &str) -> Result<()> {
-        let mut connected = self.connected.write().await;
-        *connected = true;
-        Ok(())
-    }
-    
-    async fn disconnect(&self) -> Result<()> {
-        let mut connected = self.connected.write().await;
-        *connected = false;
-        Ok(())
-    }
-    
-    async fn is_connected(&self) -> bool {
-        *self.connected.read().await
-    }
-}
+// DummyTransport removed - using QuicClient directly
 
 impl UnisonClientExt for ProtocolClient {
-    async fn start_system_stream(&mut self, method: &str, _payload: serde_json::Value) -> Result<SystemStreamWrapper, NetworkError> {
+    async fn start_system_stream(&mut self, method: &str, _payload: serde_json::Value) -> Result<crate::network::quic::UnisonStream, NetworkError> {
         // use super::quic::UnisonStream;
         use super::StreamHandle;
         
-        // For now, create a mock SystemStream
-        // In a full implementation, this would create a real QUIC bidirectional stream
+        // Create a real QUIC bidirectional stream
         let handle = StreamHandle {
             stream_id: generate_request_id(),
             method: method.to_string(),
             created_at: std::time::SystemTime::now(),
         };
         
-        // Create a UnisonStream instance
-        // Note: This is a placeholder implementation
-        // In practice, you would get the actual QUIC connection from the transport
-        let stream = SystemStreamWrapper::new_mock(MockSystemStream::new(handle));
+        // Create a UnisonStream instance from transport connection
+        let stream = crate::network::quic::UnisonStream::new(handle);
         
-        tracing::info!("🌊 Started SystemStream for method: {}", method);
+        tracing::info!("🌊 Started UnisonStream for method: {}", method);
         Ok(stream)
     }
     
@@ -369,43 +255,4 @@ impl UnisonClientExt for ProtocolClient {
     }
 }
 
-/// Mock SystemStream for testing
-pub struct MockSystemStream {
-    handle: super::StreamHandle,
-    is_active: bool,
-}
-
-impl MockSystemStream {
-    fn new(handle: super::StreamHandle) -> Self {
-        Self {
-            handle,
-            is_active: true,
-        }
-    }
-}
-
-impl SystemStream for MockSystemStream {
-    async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError> {
-        tracing::info!("📤 MockSystemStream send: {}", data);
-        Ok(())
-    }
-    
-    async fn receive(&mut self) -> Result<serde_json::Value, NetworkError> {
-        tracing::info!("📥 MockSystemStream receive");
-        Ok(serde_json::json!({"mock": "response"}))
-    }
-    
-    fn is_active(&self) -> bool {
-        self.is_active
-    }
-    
-    async fn close(&mut self) -> Result<(), NetworkError> {
-        self.is_active = false;
-        tracing::info!("🔒 MockSystemStream closed");
-        Ok(())
-    }
-    
-    fn get_handle(&self) -> super::StreamHandle {
-        self.handle.clone()
-    }
-}
+// MockSystemStream removed - using UnisonStream directly

@@ -1,6 +1,6 @@
 [package]
 name = "unison-protocol"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha1"
 edition = "2024"
 authors = ["Chronista Club <contact@chronista.club>"]
 description = "🎵 Unison Protocol - KDL-based type-safe communication framework"

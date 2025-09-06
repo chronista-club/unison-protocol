@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use super::{SystemStream, SystemStreamWrapper, NetworkError, StreamHandle};
+use super::{SystemStream, NetworkError, StreamHandle};
 
 /// Unisonサービストレイト - SystemStreamをベースとした高レベルサービスインターフェース
 pub trait Service: SystemStream {
@@ -202,13 +202,13 @@ impl Default for ServiceConfig {
 /// Unison Service implementation with QUIC SystemStream
 pub struct UnisonService {
     config: ServiceConfig,
-    stream: Box<SystemStreamWrapper>,
+    stream: Box<crate::network::quic::UnisonStream>,
     stats: ServiceStats,
     start_time: std::time::Instant,
 }
 
 impl UnisonService {
-    pub fn new(config: ServiceConfig, stream: SystemStreamWrapper) -> Self {
+    pub fn new(config: ServiceConfig, stream: crate::network::quic::UnisonStream) -> Self {
         Self {
             config,
             stream: Box::new(stream),
