@@ -10,6 +10,14 @@ license = "MIT"
 homepage = "https://github.com/chronista-club/unison-protocol"
 repository = "https://github.com/chronista-club/unison-protocol"
 readme = "README.md"
+exclude = [
+    "assets/certs/*.pem",
+    "assets/certs/*.der",
+    ".github/*",
+    "docs/*",
+    "benches/*",
+    "tests/*"
+]
 
 [dependencies]
 miette = { version = "7.2", features = ["fancy"] }
