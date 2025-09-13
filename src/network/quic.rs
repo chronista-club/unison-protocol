@@ -3,14 +3,12 @@ use futures_util::StreamExt;
 use quinn::{Endpoint, ServerConfig, ClientConfig, Connection, RecvStream, SendStream};
 use rustls::{ServerConfig as RustlsServerConfig, ClientConfig as RustlsClientConfig};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use rcgen::{generate_simple_self_signed, CertificateParams};
-use rust_embed::{RustEmbed, Embed};
-use serde_json::Value;
+use rust_embed::RustEmbed;
 use std::net::SocketAddr;
 use std::sync::{Arc, atomic::{AtomicU64, AtomicBool, Ordering}};
 use std::time::SystemTime;
 use tokio::sync::{mpsc, RwLock, Mutex};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use super::{
     server::ProtocolServer, ProtocolMessage, ProtocolServerTrait,

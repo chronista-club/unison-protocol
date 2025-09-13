@@ -1,6 +1,6 @@
 # Unison Protocol WebSocketメッセージングガイド
 
-[English](./websocket-messaging-en.md) | **日本語**
+[English](../en/websocket-messaging.md) | **日本語**
 
 ## 概要
 

@@ -1,7 +1,7 @@
 [package]
 name = "unison-protocol"
 version = "0.1.0-alpha1"
-edition = "2024"
+edition = "2021"
 authors = ["Chronista Club <contact@chronista.club>"]
 description = "🎵 Unison Protocol - KDL-based type-safe communication framework"
 keywords = ["protocol", "kdl", "websocket", "rpc", "communication"]
@@ -40,6 +40,10 @@ futures-util = "0.3"
 thiserror = "1.0"
 anyhow = "1.0"
 
+# Context-Generic Programming
+cgp = "0.4.2"
+cgp-component = "0.4.2"
+
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.10", features = ["v4", "serde"] }
@@ -66,4 +70,14 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 [dev-dependencies]
 pretty_assertions = "1.4"
 tokio-test = "0.4"
+criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
+hdrhistogram = "7.5"
+
+[[bench]]
+name = "quic_performance"
+harness = false
+
+[[bench]]
+name = "throughput"
+harness = false
 

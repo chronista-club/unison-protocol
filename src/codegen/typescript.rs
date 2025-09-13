@@ -289,7 +289,7 @@ export type LanguageCode = string; // ISO 639-1 format
         )
     }
     
-    fn generate_service_method(&self, method: &Method, type_registry: &TypeRegistry) -> String {
+    fn generate_service_method(&self, method: &Method, _type_registry: &TypeRegistry) -> String {
         let name = method.name.to_case(Case::Camel);
         let request_type = self.get_method_type_name(&method.request, &method.name, "Request");
         let response_type = self.get_method_type_name(&method.response, &method.name, "Response");
@@ -297,7 +297,7 @@ export type LanguageCode = string; // ISO 639-1 format
         format!("  {}(request: {}): Promise<{}>;\n", name, request_type, response_type)
     }
     
-    fn generate_service_stream(&self, stream: &Stream, type_registry: &TypeRegistry) -> String {
+    fn generate_service_stream(&self, stream: &Stream, _type_registry: &TypeRegistry) -> String {
         let name = stream.name.to_case(Case::Camel);
         let request_type = self.get_method_type_name(&stream.request, &stream.name, "Request");
         let response_type = self.get_method_type_name(&stream.response, &stream.name, "Response");
@@ -310,7 +310,7 @@ export type LanguageCode = string; // ISO 639-1 format
         )
     }
     
-    fn generate_client_method(&self, method: &Method, type_registry: &TypeRegistry) -> String {
+    fn generate_client_method(&self, method: &Method, _type_registry: &TypeRegistry) -> String {
         let name = method.name.to_case(Case::Camel);
         let request_type = self.get_method_type_name(&method.request, &method.name, "Request");
         let response_type = self.get_method_type_name(&method.response, &method.name, "Response");
@@ -327,7 +327,7 @@ export type LanguageCode = string; // ISO 639-1 format
         )
     }
     
-    fn generate_client_stream(&self, stream: &Stream, type_registry: &TypeRegistry) -> String {
+    fn generate_client_stream(&self, stream: &Stream, _type_registry: &TypeRegistry) -> String {
         let name = stream.name.to_case(Case::Camel);
         let request_type = self.get_method_type_name(&stream.request, &stream.name, "Request");
         let response_type = self.get_method_type_name(&stream.response, &stream.name, "Response");

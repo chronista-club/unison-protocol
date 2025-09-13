@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use kdl::{KdlDocument, KdlNode, KdlValue};
+use kdl::{KdlDocument, KdlNode};
 use thiserror::Error;
 
 pub mod schema;
@@ -43,7 +43,7 @@ impl SchemaParser {
         let mut schema = ParsedSchema::default();
         
         for node in doc.nodes() {
-            match node.name().value() {
+            match node.name().to_string().as_str() {
                 "protocol" => {
                     schema.protocol = Some(self.parse_protocol(node)?);
                 }
@@ -51,7 +51,7 @@ impl SchemaParser {
                     self.parse_types(node, &mut schema)?;
                 }
                 "import" => {
-                    if let Some(path) = node.get(0).and_then(|e| e.value().as_string()) {
+                    if let Some(path) = node.get(0).and_then(|e| e.as_string()) {
                         schema.imports.push(path.to_string());
                     }
                 }
@@ -64,12 +64,12 @@ impl SchemaParser {
 
     fn parse_protocol(&self, node: &KdlNode) -> Result<Protocol> {
         let name = node.get(0)
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .context("Protocol name is required")?
             .to_string();
 
         let version = node.get("version")
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .unwrap_or("1.0.0")
             .to_string();
 
@@ -84,10 +84,10 @@ impl SchemaParser {
 
         if let Some(children) = node.children() {
             for child in children.nodes() {
-                match child.name().value() {
+                match child.name().to_string().as_str() {
                     "namespace" => {
                         protocol.namespace = child.get(0)
-                            .and_then(|e| e.value().as_string())
+                            .and_then(|e| e.as_string())
                             .map(String::from);
                     }
                     "service" => {
@@ -112,7 +112,7 @@ impl SchemaParser {
 
     fn parse_service(&self, node: &KdlNode) -> Result<Service> {
         let name = node.get(0)
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .context("Service name is required")?
             .to_string();
 
@@ -124,7 +124,7 @@ impl SchemaParser {
 
         if let Some(children) = node.children() {
             for child in children.nodes() {
-                match child.name().value() {
+                match child.name().to_string().as_str() {
                     "method" => {
                         service.methods.push(self.parse_method(child)?);
                     }
@@ -141,7 +141,7 @@ impl SchemaParser {
 
     fn parse_method(&self, node: &KdlNode) -> Result<Method> {
         let name = node.get(0)
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .context("Method name is required")?
             .to_string();
 
@@ -153,7 +153,7 @@ impl SchemaParser {
 
         if let Some(children) = node.children() {
             for child in children.nodes() {
-                match child.name().value() {
+                match child.name().to_string().as_str() {
                     "request" => {
                         method.request = Some(self.parse_message_inline(child)?);
                     }
@@ -170,7 +170,7 @@ impl SchemaParser {
 
     fn parse_stream(&self, node: &KdlNode) -> Result<Stream> {
         let name = node.get(0)
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .context("Stream name is required")?
             .to_string();
 
@@ -182,7 +182,7 @@ impl SchemaParser {
 
         if let Some(children) = node.children() {
             for child in children.nodes() {
-                match child.name().value() {
+                match child.name().to_string().as_str() {
                     "request" => {
                         stream.request = Some(self.parse_message_inline(child)?);
                     }
@@ -199,7 +199,7 @@ impl SchemaParser {
 
     fn parse_message(&self, node: &KdlNode) -> Result<Message> {
         let name = node.get(0)
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .context("Message name is required")?
             .to_string();
 
@@ -219,7 +219,7 @@ impl SchemaParser {
 
         if let Some(children) = node.children() {
             for child in children.nodes() {
-                if child.name().value() == "field" {
+                if child.name().to_string().as_str() == "field" {
                     message.fields.push(self.parse_field(child)?);
                 }
             }
@@ -230,19 +230,19 @@ impl SchemaParser {
 
     fn parse_field(&self, node: &KdlNode) -> Result<Field> {
         let name = node.get(0)
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .context("Field name is required")?
             .to_string();
 
         let field_type = node.get("type")
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .context("Field type is required")?;
 
         let field = Field {
             name,
             field_type: self.parse_field_type(field_type, node)?,
             required: node.get("required")
-                .and_then(|e| e.value().as_bool())
+                .and_then(|e| e.as_bool())
                 .unwrap_or(false),
             default: self.parse_default_value(node),
             constraints: self.parse_constraints(node),
@@ -260,7 +260,7 @@ impl SchemaParser {
             "json" => FieldType::Json,
             "array" => {
                 let item_type = node.get("item_type")
-                    .and_then(|e| e.value().as_string())
+                    .and_then(|e| e.as_string())
                     .context("Array item_type is required")?;
                 FieldType::Array(Box::new(self.parse_field_type(item_type, node)?))
             }
@@ -275,7 +275,7 @@ impl SchemaParser {
 
     fn parse_enum(&self, node: &KdlNode) -> Result<Enum> {
         let name = node.get(0)
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .context("Enum name is required")?
             .to_string();
 
@@ -286,7 +286,7 @@ impl SchemaParser {
 
         if let Some(children) = node.children() {
             for child in children.nodes() {
-                if child.name().value() == "values" {
+                if child.name().to_string().as_str() == "values" {
                     enum_def.values = self.parse_enum_values(child)?;
                 }
             }
@@ -309,30 +309,34 @@ impl SchemaParser {
 
     fn parse_default_value(&self, node: &KdlNode) -> Option<DefaultValue> {
         node.get("default").map(|e| {
-            match e.value() {
-                KdlValue::String(s) => DefaultValue::String(s.to_string()),
-                KdlValue::Base10(i) => DefaultValue::Int(*i),
-                KdlValue::Base10Float(f) => DefaultValue::Float(*f),
-                KdlValue::Bool(b) => DefaultValue::Bool(*b),
-                _ => DefaultValue::Null,
+            if let Some(s) = e.as_string() {
+                DefaultValue::String(s.to_string())
+            } else if let Some(i) = e.as_integer().map(|n| n as i64) {
+                DefaultValue::Int(i)
+            } else if let Some(f) = e.as_float() {
+                DefaultValue::Float(f)
+            } else if let Some(b) = e.as_bool() {
+                DefaultValue::Bool(b)
+            } else {
+                DefaultValue::Null
             }
         })
     }
 
     fn parse_constraints(&self, node: &KdlNode) -> Constraints {
         Constraints {
-            min: node.get("min").and_then(|e| e.value().as_i64()),
-            max: node.get("max").and_then(|e| e.value().as_i64()),
-            min_length: node.get("min_length").and_then(|e| e.value().as_i64()).map(|i| i as usize),
-            max_length: node.get("max_length").and_then(|e| e.value().as_i64()).map(|i| i as usize),
-            pattern: node.get("pattern").and_then(|e| e.value().as_string()).map(String::from),
+            min: node.get("min").and_then(|e| e.as_integer().map(|n| n as i64)),
+            max: node.get("max").and_then(|e| e.as_integer().map(|n| n as i64)),
+            min_length: node.get("min_length").and_then(|e| e.as_integer().map(|n| n as i64)).map(|i| i as usize),
+            max_length: node.get("max_length").and_then(|e| e.as_integer().map(|n| n as i64)).map(|i| i as usize),
+            pattern: node.get("pattern").and_then(|e| e.as_string()).map(String::from),
         }
     }
 
     fn parse_types(&self, node: &KdlNode, schema: &mut ParsedSchema) -> Result<()> {
         if let Some(children) = node.children() {
             for child in children.nodes() {
-                match child.name().value() {
+                match child.name().to_string().as_str() {
                     "typedef" => {
                         schema.typedefs.push(self.parse_typedef(child)?);
                     }
@@ -351,7 +355,7 @@ impl SchemaParser {
 
     fn parse_typedef(&self, node: &KdlNode) -> Result<TypeDef> {
         let name = node.get(0)
-            .and_then(|e| e.value().as_string())
+            .and_then(|e| e.as_string())
             .context("TypeDef name is required")?
             .to_string();
 
@@ -366,31 +370,31 @@ impl SchemaParser {
 
         if let Some(children) = node.children() {
             for child in children.nodes() {
-                match child.name().value() {
+                match child.name().to_string().as_str() {
                     "base_type" => {
                         typedef.base_type = child.get(0)
-                            .and_then(|e| e.value().as_string())
+                            .and_then(|e| e.as_string())
                             .unwrap_or("")
                             .to_string();
                     }
                     "rust_type" => {
                         typedef.rust_type = child.get(0)
-                            .and_then(|e| e.value().as_string())
+                            .and_then(|e| e.as_string())
                             .map(String::from);
                     }
                     "typescript_type" => {
                         typedef.typescript_type = child.get(0)
-                            .and_then(|e| e.value().as_string())
+                            .and_then(|e| e.as_string())
                             .map(String::from);
                     }
                     "format" => {
                         typedef.format = child.get(0)
-                            .and_then(|e| e.value().as_string())
+                            .and_then(|e| e.as_string())
                             .map(String::from);
                     }
                     "pattern" => {
                         typedef.pattern = child.get(0)
-                            .and_then(|e| e.value().as_string())
+                            .and_then(|e| e.as_string())
                             .map(String::from);
                     }
                     _ => {}

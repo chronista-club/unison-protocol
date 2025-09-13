@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn generate_rust_code(schema_content: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn generate_rust_code(_schema_content: &str) -> Result<String, Box<dyn std::error::Error>> {
     // For now, generate a placeholder
     // In production, this would use the actual parser and generator
     Ok(r#"
@@ -79,7 +79,7 @@ pub struct Translation {
 "#.to_string())
 }
 
-fn generate_typescript_code(schema_content: &str) -> Result<String, Box<dyn std::error::Error>> {
+fn generate_typescript_code(_schema_content: &str) -> Result<String, Box<dyn std::error::Error>> {
     // For now, generate a placeholder
     // In production, this would use the actual parser and generator
     Ok(r#"// Auto-generated TypeScript protocol definitions

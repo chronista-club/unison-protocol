@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::{ProtocolClientTrait, ProtocolMessage, MessageType, UnisonClient, NetworkError, SystemStream, UnisonClientExt};
+use super::{ProtocolClientTrait, ProtocolMessage, MessageType, UnisonClient, NetworkError, UnisonClientExt};
 use super::service::Service;
 use super::quic::QuicClient;
 
@@ -231,17 +231,15 @@ impl UnisonClientExt for ProtocolClient {
         use super::StreamHandle;
         
         // Create a real QUIC bidirectional stream
-        let handle = StreamHandle {
+        let _handle = StreamHandle {
             stream_id: generate_request_id(),
             method: method.to_string(),
             created_at: std::time::SystemTime::now(),
         };
         
-        // Create a UnisonStream instance from transport connection
-        let stream = crate::network::quic::UnisonStream::new(handle);
-        
-        tracing::info!("🌊 Started UnisonStream for method: {}", method);
-        Ok(stream)
+        // QUICクライアントの接続を取得してUnisonStreamを作成
+        // 現在の実装では直接アクセスできないため、エラーを返す
+        return Err(NetworkError::NotConnected);
     }
     
     async fn list_system_streams(&self) -> Result<Vec<super::StreamHandle>, NetworkError> {

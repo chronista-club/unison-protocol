@@ -29,6 +29,10 @@ pub enum NetworkError {
     Timeout,
     #[error("Handler not found for method: {method}")]
     HandlerNotFound { method: String },
+    #[error("Not connected")]
+    NotConnected,
+    #[error("Unsupported transport: {0}")]
+    UnsupportedTransport(String),
 }
 
 /// プロトコルメッセージラッパー

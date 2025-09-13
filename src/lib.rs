@@ -48,6 +48,9 @@ pub mod network;
 // Core module for protocol definitions
 pub mod core;
 
+// CGP-based context module
+pub mod context;
+
 // Re-export generated code
 pub mod generated {
     // This will be populated by build.rs
@@ -114,8 +117,8 @@ impl UnisonProtocol {
     }
     
     /// Create a new Unison client
-    pub fn create_client(&self) -> ProtocolClient {
-        ProtocolClient::new_default()
+    pub fn create_client(&self) -> Result<ProtocolClient, Box<dyn std::error::Error>> {
+        Ok(ProtocolClient::new_default()?)
     }
     
     /// Create a new Unison server
@@ -173,7 +176,7 @@ mod tests {
     #[test]
     fn test_client_server_creation() {
         let protocol = UnisonProtocol::new();
-        let _client = protocol.create_client();
+        let _client = protocol.create_client().unwrap();
         let _server = protocol.create_server();
         // Test passes if no panics occur
     }

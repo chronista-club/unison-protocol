@@ -257,7 +257,7 @@ impl RustGenerator {
         }
     }
     
-    fn generate_service_method(&self, method: &Method, type_registry: &TypeRegistry) -> TokenStream {
+    fn generate_service_method(&self, method: &Method, _type_registry: &TypeRegistry) -> TokenStream {
         let name = format_ident!("{}", method.name.to_case(Case::Snake));
         let request_type = self.method_type_name(&method.request, "Request");
         let response_type = self.method_type_name(&method.response, "Response");
@@ -267,7 +267,7 @@ impl RustGenerator {
         }
     }
     
-    fn generate_service_stream(&self, stream: &Stream, type_registry: &TypeRegistry) -> TokenStream {
+    fn generate_service_stream(&self, stream: &Stream, _type_registry: &TypeRegistry) -> TokenStream {
         let name = format_ident!("{}", stream.name.to_case(Case::Snake));
         let request_type = self.method_type_name(&stream.request, "Request");
         let response_type = self.method_type_name(&stream.response, "Response");
@@ -280,7 +280,7 @@ impl RustGenerator {
         }
     }
     
-    fn generate_client_method(&self, method: &Method, type_registry: &TypeRegistry) -> TokenStream {
+    fn generate_client_method(&self, method: &Method, _type_registry: &TypeRegistry) -> TokenStream {
         let name = format_ident!("{}", method.name.to_case(Case::Snake));
         let request_type = self.method_type_name(&method.request, "Request");
         let response_type = self.method_type_name(&method.response, "Response");
@@ -293,7 +293,7 @@ impl RustGenerator {
         }
     }
     
-    fn generate_client_stream(&self, stream: &Stream, type_registry: &TypeRegistry) -> TokenStream {
+    fn generate_client_stream(&self, stream: &Stream, _type_registry: &TypeRegistry) -> TokenStream {
         let name = format_ident!("{}", stream.name.to_case(Case::Snake));
         let request_type = self.method_type_name(&stream.request, "Request");
         let response_type = self.method_type_name(&stream.response, "Response");

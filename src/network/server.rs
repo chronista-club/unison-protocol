@@ -6,8 +6,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use super::{ProtocolServerTrait, ProtocolMessage, MessageType, UnisonServer, UnisonServerExt, NetworkError, SystemStream};
-use super::service::{Service, UnisonService, ServiceConfig};
+use super::{ProtocolServerTrait, ProtocolMessage, MessageType, UnisonServer, UnisonServerExt, NetworkError};
+use super::service::Service;
 
 /// サーバーハンドラー関数型
 type CallHandler = Arc<
