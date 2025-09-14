@@ -60,12 +60,17 @@ impl ProtocolClient {
         }
     }
     
-    pub async fn connect(&self, url: &str) -> Result<()> {
-        self.transport.connect(url).await
+    pub async fn connect(&mut self, url: &str) -> Result<()> {
+        // Arc::get_mutを使用してmutableアクセス
+        Arc::get_mut(&mut self.transport)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get mutable transport"))?
+            .connect(url).await
     }
-    
-    pub async fn disconnect(&self) -> Result<()> {
-        self.transport.disconnect().await
+
+    pub async fn disconnect(&mut self) -> Result<()> {
+        Arc::get_mut(&mut self.transport)
+            .ok_or_else(|| anyhow::anyhow!("Failed to get mutable transport"))?
+            .disconnect().await
     }
     
     pub async fn is_connected(&self) -> bool {
@@ -180,10 +185,12 @@ fn generate_request_id() -> u64 {
 
 impl UnisonClient for ProtocolClient {
     async fn connect(&mut self, url: &str) -> Result<(), NetworkError> {
-        self.transport.connect(url).await
+        Arc::get_mut(&mut self.transport)
+            .ok_or_else(|| NetworkError::Connection("Failed to get mutable transport".to_string()))?
+            .connect(url).await
             .map_err(|e| NetworkError::Connection(e.to_string()))
     }
-    
+
     async fn call(&mut self, method: &str, payload: serde_json::Value) -> Result<serde_json::Value, NetworkError> {
         let request_id = generate_request_id();
         
@@ -213,7 +220,9 @@ impl UnisonClient for ProtocolClient {
     }
     
     async fn disconnect(&mut self) -> Result<(), NetworkError> {
-        self.transport.disconnect().await
+        Arc::get_mut(&mut self.transport)
+            .ok_or_else(|| NetworkError::Connection("Failed to get mutable transport".to_string()))?
+            .disconnect().await
             .map_err(|e| NetworkError::Connection(e.to_string()))
     }
     

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use unison_protocol::{UnisonProtocol, UnisonClient};
+use unison_protocol::{UnisonProtocol, UnisonClient, ProtocolClient};
 use serde_json::json;
 use std::time::Instant;
 use tracing::{info, Level};
@@ -23,8 +23,8 @@ async fn main() -> Result<()> {
     protocol.load_schema(include_str!("../schemas/ping_pong.kdl"))?;
     
     // Create client
-    let mut client = protocol.create_client();
-    
+    let mut client = protocol.create_client()?;
+
     // Connect to server (QUIC uses IP:Port format)
     client.connect("127.0.0.1:8080").await?;
     info!("✅ Connected to Unison Protocol server!");
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run_unison_tests(client: &mut Box<dyn UnisonClient>) -> Result<()> {
+async fn run_unison_tests(client: &mut ProtocolClient) -> Result<()> {
     info!("");
     info!("🧪 Starting Unison Protocol Tests");
     info!("===================================");

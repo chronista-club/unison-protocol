@@ -112,7 +112,7 @@ async fn start_benchmark_server() -> Result<()> {
 
 /// ベンチマークを実行
 async fn run_benchmark(message_size: usize) -> Result<BenchmarkResult> {
-    let quic_client = QuicClient::new();
+    let quic_client = QuicClient::new()?;
     let mut client = ProtocolClient::new(quic_client);
     client.connect("127.0.0.1:8080").await?;
     
