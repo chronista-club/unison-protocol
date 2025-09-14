@@ -13,20 +13,26 @@
 //! 
 //! ## Quick Start
 //! 
-//! ```rust
-//! use unison_protocol::{UnisonProtocol, UnisonClient, UnisonServer};
-//! 
+//! ```rust,no_run
+//! # use anyhow::Result;
+//! # #[tokio::main]
+//! # async fn main() -> Result<()> {
+//! use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt};
+//! use unison_protocol::network::NetworkError;
+//!
 //! // Load protocol schema
 //! let mut protocol = UnisonProtocol::new();
-//! protocol.load_schema(include_str!("../schemas/unison_core.kdl"))?;
-//! 
+//! // protocol.load_schema(include_str!("../schemas/ping_pong.kdl"))?;
+//!
 //! // Create server
 //! let mut server = protocol.create_server();
 //! server.register_handler("ping", |payload| {
 //!     // Handle ping request
-//!     Ok(serde_json::json!({"message": "pong"}))
+//!     Ok(serde_json::json!({"message": "pong"})) as Result<serde_json::Value, NetworkError>
 //! });
-//! server.listen("127.0.0.1:8080").await?;
+//! // server.listen("127.0.0.1:8080").await?;
+//! # Ok(())
+//! # }
 //! ```
 //! 
 //! ## Core Concepts
@@ -117,7 +123,7 @@ impl UnisonProtocol {
     }
     
     /// Create a new Unison client
-    pub fn create_client(&self) -> Result<ProtocolClient, Box<dyn std::error::Error>> {
+    pub fn create_client(&self) -> Result<ProtocolClient, anyhow::Error> {
         Ok(ProtocolClient::new_default()?)
     }
     
@@ -143,32 +149,36 @@ mod tests {
         assert_eq!(protocol.schemas.len(), 0);
     }
     
-    #[test] 
+    #[test]
     fn test_parse_schema() {
         let schema = r#"
-            protocol "test" version="1.0.0" {
-                namespace "test.protocol"
-                
-                message "TestMessage" {
-                    field "id" type="string" required=true
-                    field "value" type="number"
-                }
-                
-                service "TestService" {
-                    method "test_method" {
-                        request {
-                            field "input" type="string" required=true
-                        }
-                        response {
-                            field "output" type="string" required=true
-                        }
-                    }
-                }
-            }
+protocol "test" version="1.0.0" {
+    namespace "test.protocol"
+    description "Test protocol for unit testing"
+
+    message "TestMessage" {
+        description "Test message structure"
+        field "id" type="string" required=#true description="Unique identifier"
+        field "value" type="number" required=#false description="Optional numeric value"
+    }
+
+    service "TestService" {
+        description "Test service for unit testing"
+
+        method "test_method" {
+            description "Test method"
+            request "TestMessage"
+            response "TestMessage"
+        }
+    }
+}
         "#;
         
         let mut protocol = UnisonProtocol::new();
         let result = protocol.load_schema(schema);
+        if let Err(e) = &result {
+            eprintln!("Parse error: {:?}", e);
+        }
         assert!(result.is_ok());
         assert_eq!(protocol.schemas.len(), 1);
     }

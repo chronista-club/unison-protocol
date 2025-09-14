@@ -19,6 +19,9 @@ use super::{
 pub const DEFAULT_CERT_PATH: &str = "assets/certs/cert.pem";
 pub const DEFAULT_KEY_PATH: &str = "assets/certs/private_key.der";
 
+/// Maximum message size for QUIC streams (8MB)
+const MAX_MESSAGE_SIZE: usize = 8 * 1024 * 1024;
+
 /// Embedded certificates for development use
 #[derive(RustEmbed)]
 #[folder = "assets/certs"]
@@ -32,6 +35,8 @@ pub struct QuicClient {
     connection: Arc<RwLock<Option<Connection>>>,
     rx: Arc<RwLock<Option<mpsc::UnboundedReceiver<ProtocolMessage>>>>,
     tx: mpsc::UnboundedSender<ProtocolMessage>,
+    /// レスポンス受信タスクのハンドルを管理
+    response_tasks: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
 impl QuicClient {
@@ -42,6 +47,7 @@ impl QuicClient {
             connection: Arc::new(RwLock::new(None)),
             rx: Arc::new(RwLock::new(Some(rx))),
             tx,
+            response_tasks: Arc::new(Mutex::new(Vec::new())),
         })
     }
 
@@ -74,61 +80,42 @@ impl QuicClient {
         Ok(client_config)
     }
 
-    async fn start_receive_loop(&self, connection: Connection) {
-        let tx = self.tx.clone();
-        
-        tokio::spawn(async move {
-            loop {
-                match connection.accept_uni().await {
-                    Ok(recv_stream) => {
-                        let tx = tx.clone();
-                        tokio::spawn(async move {
-                            if let Err(e) = Self::handle_incoming_stream(recv_stream, tx).await {
-                                error!("Failed to handle incoming stream: {}", e);
-                            }
-                        });
-                    }
-                    Err(quinn::ConnectionError::ApplicationClosed(_)) => {
-                        info!("Connection closed by application");
-                        break;
-                    }
-                    Err(e) => {
-                        error!("Failed to accept stream: {}", e);
-                        break;
-                    }
-                }
-            }
-        });
-    }
-
-    async fn handle_incoming_stream(
-        mut recv_stream: RecvStream,
-        tx: mpsc::UnboundedSender<ProtocolMessage>,
-    ) -> Result<()> {
-        let data = recv_stream.read_to_end(8 * 1024 * 1024).await?; // 8MB limit
-        let message: ProtocolMessage = serde_json::from_slice(&data)?;
-        
-        tx.send(message).map_err(|e| {
-            anyhow::anyhow!("Failed to send message to channel: {}", e)
-        })?;
-        
-        Ok(())
-    }
+    // 双方向ストリームを使うため、start_receive_loopは不要になりました
 }
 
 impl QuicClient {
     pub async fn send(&self, message: ProtocolMessage) -> Result<()> {
         let connection_guard = self.connection.read().await;
         if let Some(connection) = connection_guard.as_ref() {
-            let mut send_stream = connection.open_uni().await
-                .context("Failed to open QUIC stream")?;
-            
+            // 双方向ストリームを開く
+            let (mut send_stream, mut recv_stream) = connection.open_bi().await
+                .context("Failed to open bidirectional QUIC stream")?;
+
+            // リクエストを送信
             let json = serde_json::to_vec(&message)?;
             send_stream.write_all(&json).await
                 .context("Failed to write to QUIC stream")?;
             send_stream.finish()
-                .context("Failed to finish QUIC stream")?;
-            
+                .context("Failed to finish QUIC send stream")?;
+
+            // レスポンスを受信してチャンネルに送る
+            let tx = self.tx.clone();
+            let task = tokio::spawn(async move {
+                match recv_stream.read_to_end(MAX_MESSAGE_SIZE).await {
+                    Ok(data) => {
+                        if let Ok(response) = serde_json::from_slice::<ProtocolMessage>(&data) {
+                            let _ = tx.send(response);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to read response: {}", e);
+                    }
+                }
+            });
+
+            // タスクハンドルを保存
+            self.response_tasks.lock().await.push(task);
+
             Ok(())
         } else {
             Err(anyhow::anyhow!("QUIC not connected"))
@@ -160,14 +147,20 @@ impl QuicClient {
             .context("Failed to establish QUIC connection")?;
 
         info!("Connected to QUIC server at {}", addr);
-        
-        self.start_receive_loop(connection.clone()).await;
+
         *self.connection.write().await = Some(connection);
-        
+
         Ok(())
     }
     
     pub async fn disconnect(&self) -> Result<()> {
+        // すべてのレスポンス受信タスクをキャンセル
+        let mut tasks = self.response_tasks.lock().await;
+        for task in tasks.drain(..) {
+            task.abort();
+        }
+
+        // 接続をクローズ
         let mut connection_guard = self.connection.write().await;
         if let Some(connection) = connection_guard.take() {
             connection.close(quinn::VarInt::from_u32(0), b"client disconnect");
@@ -353,13 +346,14 @@ async fn handle_connection(
     server: Arc<ProtocolServer>,
 ) -> Result<()> {
     loop {
-        match connection.accept_uni().await {
-            Ok(mut recv_stream) => {
+        let connection_clone = connection.clone();
+        match connection.accept_bi().await {
+            Ok((mut send_stream, mut recv_stream)) => {
                 let server = Arc::clone(&server);
-                let connection = connection.clone();
-                
+                let connection = connection_clone;
+
                 tokio::spawn(async move {
-                    match recv_stream.read_to_end(8 * 1024 * 1024).await {
+                    match recv_stream.read_to_end(MAX_MESSAGE_SIZE).await {
                         Ok(data) => {
                             match serde_json::from_slice::<ProtocolMessage>(&data) {
                                 Ok(request) => {
@@ -386,10 +380,13 @@ async fn handle_connection(
                                                     }),
                                                 },
                                             };
-                                            
-                                            if let Err(e) = send_response(connection, response_msg).await {
+
+                                            // 双方向ストリームの送信側を使ってレスポンスを送信
+                                            let response_data = serde_json::to_vec(&response_msg).unwrap();
+                                            if let Err(e) = send_stream.write_all(&response_data).await {
                                                 error!("Failed to send response: {}", e);
                                             }
+                                            let _ = send_stream.finish();
                                         }
                                         super::MessageType::Stream => {
                                             match server.handle_stream(&request.method, request.payload).await {
@@ -477,7 +474,8 @@ async fn handle_connection(
 }
 
 async fn send_response(connection: Connection, message: ProtocolMessage) -> Result<()> {
-    let mut send_stream = connection.open_uni().await?;
+    // 双方向ストリームを使用（レスポンスチャンネルは使わないが、プロトコルの一貫性のため）
+    let (mut send_stream, _recv_stream) = connection.open_bi().await?;
     let data = serde_json::to_vec(&message)?;
     send_stream.write_all(&data).await?;
     send_stream.finish()?;
@@ -639,7 +637,7 @@ impl SystemStream for UnisonStream {
         
         let mut recv_guard = self.recv_stream.lock().await;
         if let Some(recv_stream) = recv_guard.as_mut() {
-            let data = recv_stream.read_to_end(8 * 1024 * 1024).await // 8MB limit
+            let data = recv_stream.read_to_end(MAX_MESSAGE_SIZE).await // 8MB limit
                 .map_err(|e| NetworkError::Quic(format!("Failed to receive data: {}", e)))?;
             
             if data.is_empty() {

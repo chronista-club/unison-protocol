@@ -3,7 +3,7 @@ use serde_json::json;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
 use tracing::{info, Level};
-use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt, ProtocolServer};
+use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt, ProtocolServer, ProtocolClient, UnisonClient};
 use unison_protocol::network::NetworkError;
 
 /// QUIC統合テスト - サーバーとクライアントを同一プロセスでテスト
@@ -68,7 +68,7 @@ async fn run_test_client() -> Result<()> {
     protocol.load_schema(include_str!("../schemas/ping_pong.kdl"))?;
     
     // クライアント作成と接続
-    let mut client = protocol.create_client();
+    let mut client = protocol.create_client()?;
     client.connect("127.0.0.1:8080").await?;
     info!("✅ Connected to test server");
     
@@ -150,7 +150,7 @@ async fn register_test_handlers(server: &mut ProtocolServer, start_time: Instant
 }
 
 /// 統合テストの実行
-async fn run_integration_tests(client: &mut Box<dyn unison_protocol::UnisonClient>) -> Result<()> {
+async fn run_integration_tests(client: &mut unison_protocol::ProtocolClient) -> Result<()> {
     info!("🧪 Running integration tests...");
     
     // Test 1: Server time check

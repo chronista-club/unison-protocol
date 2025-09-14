@@ -191,24 +191,25 @@ async fn test_service_registry() {
         name: "test_service".to_string(),
     };
     
-    let result = context.registry().register("test".to_string(), service.clone()).await;
+    let registry = context.registry();
+    let result = registry.write().await.register("test".to_string(), service.clone()).await;
     assert!(result.is_ok());
-    
+
     // サービス取得
-    let retrieved = context.registry().get("test").await;
+    let retrieved = registry.read().await.get("test").await;
     assert!(retrieved.is_some());
     assert_eq!(retrieved.unwrap().name, "test_service");
-    
+
     // サービス一覧
-    let list = context.registry().list().await;
+    let list = registry.read().await.list().await;
     assert_eq!(list.len(), 1);
     assert!(list.contains(&"test".to_string()));
-    
+
     // サービス削除
-    let result = context.registry().remove("test").await;
+    let result = registry.write().await.remove("test").await;
     assert!(result.is_ok());
-    
-    let list = context.registry().list().await;
+
+    let list = registry.read().await.list().await;
     assert_eq!(list.len(), 0);
 }
 
