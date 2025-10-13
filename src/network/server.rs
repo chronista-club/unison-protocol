@@ -16,6 +16,7 @@ type CallHandler = Arc<
         + Sync,
 >;
 
+/// ストリームハンドラー関数型
 type StreamHandler = Arc<
     dyn Fn(
             Value,
@@ -87,7 +88,7 @@ impl ProtocolServer {
         let handler = Arc::new(move |value: Value| {
             Box::pin(handler(value)) as Pin<Box<dyn futures_util::Future<Output = Result<Value>> + Send>>
         });
-        
+
         let mut handlers = self.call_handlers.write().await;
         handlers.insert(method.to_string(), handler);
     }
@@ -107,7 +108,7 @@ impl ProtocolServer {
                 Ok(Box::pin(stream) as Pin<Box<dyn Stream<Item = Result<Value>> + Send>>)
             }) as Pin<Box<dyn futures_util::Future<Output = Result<Pin<Box<dyn Stream<Item = Result<Value>> + Send>>>> + Send>>
         });
-        
+
         let mut handlers = self.stream_handlers.write().await;
         handlers.insert(method.to_string(), wrapped_handler);
     }

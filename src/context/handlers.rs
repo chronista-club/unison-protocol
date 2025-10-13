@@ -10,9 +10,9 @@ use crate::network::{NetworkError, ProtocolMessage};
 // Extensible Handler System
 // ========================================
 
-/// 拡張可能なメッセージディスパッチャー
+/// 拡張可能なメッセージディスパッチャー (Rust 2024対応)
 pub trait MessageDispatcher {
-    async fn dispatch(&self, message: ProtocolMessage) -> Result<Value, NetworkError>;
+    fn dispatch(&self, message: ProtocolMessage) -> impl std::future::Future<Output = Result<Value, NetworkError>> + Send;
 }
 
 /// メソッド別ハンドラーレジストリ
@@ -196,14 +196,14 @@ macro_rules! register_handlers {
 // Stream Handler Support
 // ========================================
 
-/// ストリーミングハンドラー
+/// ストリーミングハンドラー (Rust 2024対応)
 pub trait StreamHandler: Send + Sync {
     type Item;
-    
-    async fn handle_stream(
+
+    fn handle_stream(
         &self,
         payload: Value
-    ) -> Result<Box<dyn futures_util::Stream<Item = Self::Item> + Send>, NetworkError>;
+    ) -> impl std::future::Future<Output = Result<Box<dyn futures_util::Stream<Item = Self::Item> + Send>, NetworkError>> + Send;
 }
 
 /// 数値ストリームハンドラーの例

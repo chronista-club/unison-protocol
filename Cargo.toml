@@ -1,9 +1,9 @@
 [package]
 name = "unison-protocol"
 version = "0.1.0-alpha2"
-edition = "2021"
-authors = ["Chronista Club <contact@chronista.club>"]
-description = "🎵 Unison Protocol - KDL-based type-safe communication framework"
+edition = "2024"
+authors = ["Mako<mito@chronista.club>"]
+description = "Type-safe communication protocol framework powered by KDL schema and QUIC transport"
 keywords = ["protocol", "kdl", "websocket", "rpc", "communication"]
 categories = ["network-programming", "web-programming", "api-bindings"]
 license = "MIT"

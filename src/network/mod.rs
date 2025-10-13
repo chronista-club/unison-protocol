@@ -70,65 +70,65 @@ pub struct ProtocolError {
     pub details: Option<serde_json::Value>,
 }
 
-/// プロトコル呼び出し用クライアントトレイト
+/// プロトコル呼び出し用クライアントトレイト (Rust 2024対応)
 pub trait ProtocolClientTrait: Send + Sync {
     /// 単項RPC呼び出しの実行
-    async fn call<TRequest, TResponse>(&self, method: &str, request: TRequest) -> Result<TResponse>
+    fn call<TRequest, TResponse>(&self, method: &str, request: TRequest) -> impl std::future::Future<Output = Result<TResponse>> + Send
     where
         TRequest: Serialize + Send + Sync,
         TResponse: for<'de> Deserialize<'de>;
-    
+
     /// ストリーミングRPC呼び出しの開始
-    async fn stream<TRequest, TResponse>(
+    fn stream<TRequest, TResponse>(
         &self,
         method: &str,
         request: TRequest,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<TResponse>> + Send>>>
+    ) -> impl std::future::Future<Output = Result<Pin<Box<dyn Stream<Item = Result<TResponse>> + Send>>>> + Send
     where
         TRequest: Serialize + Send + Sync,
         TResponse: for<'de> Deserialize<'de> + Send + 'static;
 }
 
-/// プロトコルリクエスト処理用サーバートレイト
+/// プロトコルリクエスト処理用サーバートレイト (Rust 2024対応)
 pub trait ProtocolServerTrait: Send + Sync {
     /// 単項RPC呼び出しの処理
-    async fn handle_call(
+    fn handle_call(
         &self,
         method: &str,
         payload: serde_json::Value,
-    ) -> Result<serde_json::Value>;
-    
+    ) -> impl std::future::Future<Output = Result<serde_json::Value>> + Send;
+
     /// ストリーミングRPC呼び出しの処理
-    async fn handle_stream(
+    fn handle_stream(
         &self,
         method: &str,
         payload: serde_json::Value,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<serde_json::Value>> + Send>>>;
+    ) -> impl std::future::Future<Output = Result<Pin<Box<dyn Stream<Item = Result<serde_json::Value>> + Send>>>> + Send;
 }
 
-/// Unison Protocolクライアントトレイト
+/// Unison Protocolクライアントトレイト (Rust 2024対応)
 pub trait UnisonClient: Send + Sync {
     /// Unisonサーバーへの接続
-    async fn connect(&mut self, url: &str) -> Result<(), NetworkError>;
-    
+    fn connect(&mut self, url: &str) -> impl std::future::Future<Output = Result<(), NetworkError>> + Send;
+
     /// リモートプロシージャ呼び出しの実行
-    async fn call(&mut self, method: &str, payload: serde_json::Value) -> Result<serde_json::Value, NetworkError>;
-    
+    fn call(&mut self, method: &str, payload: serde_json::Value) -> impl std::future::Future<Output = Result<serde_json::Value, NetworkError>> + Send;
+
     /// サーバーからの切断
-    async fn disconnect(&mut self) -> Result<(), NetworkError>;
-    
+    fn disconnect(&mut self) -> impl std::future::Future<Output = Result<(), NetworkError>> + Send;
+
     /// クライアント接続状態の確認
     fn is_connected(&self) -> bool;
 }
 
-/// Unison Protocolサーバートレイト（dyn互換）
+/// Unison Protocolサーバートレイト (Rust 2024対応)
 pub trait UnisonServer: Send + Sync {
     /// 接続の待ち受け開始
-    async fn listen(&mut self, addr: &str) -> Result<(), NetworkError>;
-    
+    fn listen(&mut self, addr: &str) -> impl std::future::Future<Output = Result<(), NetworkError>> + Send;
+
     /// サーバーの停止
-    async fn stop(&mut self) -> Result<(), NetworkError>;
-    
+    fn stop(&mut self) -> impl std::future::Future<Output = Result<(), NetworkError>> + Send;
+
     /// サーバー実行状態の確認
     fn is_running(&self) -> bool;
 }
@@ -151,20 +151,20 @@ pub trait UnisonServerExt: UnisonServer {
         F: Fn(serde_json::Value, crate::network::quic::UnisonStream) -> Pin<Box<dyn futures_util::Future<Output = Result<(), NetworkError>> + Send>> + Send + Sync + 'static;
 }
 
-/// SystemStream - QUIC用双方向ストリームトレイト
+/// SystemStream - QUIC用双方向ストリームトレイト (Rust 2024対応)
 pub trait SystemStream: Send + Sync {
     /// ストリームでのデータ送信
-    async fn send(&mut self, data: serde_json::Value) -> Result<(), NetworkError>;
-    
+    fn send(&mut self, data: serde_json::Value) -> impl std::future::Future<Output = Result<(), NetworkError>> + Send;
+
     /// ストリームからのデータ受信
-    async fn receive(&mut self) -> Result<serde_json::Value, NetworkError>;
-    
+    fn receive(&mut self) -> impl std::future::Future<Output = Result<serde_json::Value, NetworkError>> + Send;
+
     /// ストリーム稼働状態の確認
     fn is_active(&self) -> bool;
-    
+
     /// ストリームの終了
-    async fn close(&mut self) -> Result<(), NetworkError>;
-    
+    fn close(&mut self) -> impl std::future::Future<Output = Result<(), NetworkError>> + Send;
+
     /// ストリームメタデータの取得
     fn get_handle(&self) -> StreamHandle;
 }
@@ -181,14 +181,14 @@ pub struct StreamHandle {
     pub created_at: std::time::SystemTime,
 }
 
-/// SystemStreamサポート付き拡張クライアントトレイト
+/// SystemStreamサポート付き拡張クライアントトレイト (Rust 2024対応)
 pub trait UnisonClientExt: UnisonClient {
     /// 双方向SystemStreamの開始
-    async fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> Result<crate::network::quic::UnisonStream, NetworkError>;
-    
+    fn start_system_stream(&mut self, method: &str, payload: serde_json::Value) -> impl std::future::Future<Output = Result<crate::network::quic::UnisonStream, NetworkError>> + Send;
+
     /// アクティブなSystemStreamの一覧
-    async fn list_system_streams(&self) -> Result<Vec<StreamHandle>, NetworkError>;
-    
+    fn list_system_streams(&self) -> impl std::future::Future<Output = Result<Vec<StreamHandle>, NetworkError>> + Send;
+
     /// ID指定によるSystemStreamの終了
-    async fn close_system_stream(&mut self, stream_id: u64) -> Result<(), NetworkError>;
+    fn close_system_stream(&mut self, stream_id: u64) -> impl std::future::Future<Output = Result<(), NetworkError>> + Send;
 }
