@@ -19,26 +19,26 @@ impl RustGenerator {
 impl CodeGenerator for RustGenerator {
     fn generate(&self, schema: &ParsedSchema, type_registry: &TypeRegistry) -> Result<String> {
         let mut tokens = TokenStream::new();
-        
-        // Add imports
+
+        // インポート文を追加
         tokens.extend(self.generate_imports());
-        
-        // Generate enums
+
+        // 列挙型を生成
         for enum_def in &schema.enums {
             tokens.extend(self.generate_enum(enum_def));
         }
-        
-        // Generate messages
+
+        // メッセージを生成
         for message in &schema.messages {
             tokens.extend(self.generate_message(message, type_registry));
         }
-        
-        // Generate protocol-specific code
+
+        // プロトコル固有のコードを生成
         if let Some(protocol) = &schema.protocol {
             tokens.extend(self.generate_protocol(protocol, type_registry));
         }
-        
-        // Format the generated code
+
+        // 生成されたコードをフォーマット
         let code = tokens.to_string();
         Ok(self.format_code(&code))
     }
@@ -60,22 +60,22 @@ impl RustGenerator {
     
     fn generate_protocol(&self, protocol: &Protocol, type_registry: &TypeRegistry) -> TokenStream {
         let mut tokens = TokenStream::new();
-        
-        // Generate protocol enums
+
+        // プロトコルの列挙型を生成
         for enum_def in &protocol.enums {
             tokens.extend(self.generate_enum(enum_def));
         }
-        
-        // Generate protocol messages
+
+        // プロトコルのメッセージを生成
         for message in &protocol.messages {
             tokens.extend(self.generate_message(message, type_registry));
         }
-        
-        // Generate services
+
+        // サービスを生成
         for service in &protocol.services {
             tokens.extend(self.generate_service(service, type_registry));
         }
-        
+
         tokens
     }
     
@@ -103,16 +103,16 @@ impl RustGenerator {
     
     fn generate_message(&self, message: &Message, type_registry: &TypeRegistry) -> TokenStream {
         let name = format_ident!("{}", message.name.trim_start_matches("_inline_"));
-        
-        // Skip inline messages
+
+        // インラインメッセージはスキップ
         if message.name.starts_with("_inline_") {
             return TokenStream::new();
         }
-        
+
         let fields: Vec<_> = message.fields.iter()
             .map(|f| self.generate_field(f, type_registry))
             .collect();
-        
+
         quote! {
             #[derive(Debug, Clone, Serialize, Deserialize)]
             pub struct #name {
@@ -124,16 +124,16 @@ impl RustGenerator {
     fn generate_field(&self, field: &Field, type_registry: &TypeRegistry) -> TokenStream {
         let name = format_ident!("{}", field.name);
         let rust_type = self.field_type_to_rust(&field.field_type, type_registry);
-        
+
         let mut attributes = vec![];
-        
-        // Add serde rename if needed
+
+        // 必要に応じてserdeのrenameを追加
         if field.name != field.name.to_case(Case::Snake) {
             let rename = &field.name;
             attributes.push(quote! { #[serde(rename = #rename)] });
         }
-        
-        // Handle optional fields
+
+        // オプショナルフィールドの処理
         let (field_type, extra_attrs) = if !field.required {
             (
                 quote! { Option<#rust_type> },
@@ -142,14 +142,14 @@ impl RustGenerator {
         } else {
             (rust_type, TokenStream::new())
         };
-        
-        // Handle default values
+
+        // デフォルト値の処理
         let default_attr = if let Some(default) = &field.default {
             self.generate_default_attr(default)
         } else {
             TokenStream::new()
         };
-        
+
         quote! {
             #(#attributes)*
             #extra_attrs
@@ -175,7 +175,7 @@ impl RustGenerator {
                 quote! { HashMap<#key_type, #value_type> }
             }
             FieldType::Enum(_) => {
-                // This should be resolved to actual enum type
+                // 実際の列挙型に解決される必要がある
                 quote! { String }
             }
             FieldType::Custom(name) => {
@@ -235,22 +235,22 @@ impl RustGenerator {
             .collect();
         
         quote! {
-            // Service trait
+            // サービストレイト
             pub trait #service_name: Send + Sync {
                 #(#methods)*
                 #(#streams)*
             }
-            
-            // Client implementation
+
+            // クライアント実装
             pub struct #client_name {
                 inner: Box<dyn ProtocolClient>,
             }
-            
+
             impl #client_name {
                 pub fn new(client: Box<dyn ProtocolClient>) -> Self {
                     Self { inner: client }
                 }
-                
+
                 #(#client_methods)*
                 #(#client_streams)*
             }
@@ -312,7 +312,7 @@ impl RustGenerator {
     fn method_type_name(&self, message: &Option<Message>, suffix: &str) -> TokenStream {
         if let Some(msg) = message {
             if msg.name.starts_with("_inline_") {
-                // Generate inline type
+                // インライン型を生成
                 let fields: Vec<_> = msg.fields.iter()
                     .map(|f| {
                         let name = format_ident!("{}", f.name);
@@ -320,7 +320,7 @@ impl RustGenerator {
                         quote! { pub #name: #ty }
                     })
                     .collect();
-                
+
                 quote! {
                     {
                         #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -338,9 +338,9 @@ impl RustGenerator {
             quote! { () }
         }
     }
-    
+
     fn format_code(&self, code: &str) -> String {
-        // Basic formatting - in production, use rustfmt
+        // 基本的なフォーマット - 本番環境ではrustfmtを使用
         code.replace(" ;", ";")
             .replace("  ", " ")
             .replace("{ ", "{\n    ")

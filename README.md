@@ -1,44 +1,44 @@
 # 🎵 Unison Protocol
 
-*Next-generation type-safe communication protocol framework*
+*次世代型の型安全通信プロトコルフレームワーク*
 
 [![Crates.io](https://img.shields.io/crates/v/unison-protocol.svg)](https://crates.io/crates/unison-protocol)
 [![Documentation](https://docs.rs/unison-protocol/badge.svg)](https://docs.rs/unison-protocol)
 [![Build Status](https://github.com/chronista-club/unison-protocol/workflows/CI/badge.svg)](https://github.com/chronista-club/unison-protocol/actions)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[English](README.md) | [日本語](docs/ja/README.md)
+[日本語](README.md) | [English](README.en.md)
 
-## 📌 Overview
+## 📌 概要
 
-**Unison Protocol** is a type-safe communication protocol framework based on KDL (KDL Document Language). Leveraging QUIC transport, it supports building fast, secure, and extensible distributed systems.
+**Unison Protocol** は、KDL (KDL Document Language) ベースの型安全な通信プロトコルフレームワークです。QUICトランスポートを活用し、高速・安全・拡張可能な分散システムとリアルタイムアプリケーションの構築を支援します。
 
-### 🎯 Key Features
+### 🎯 主要機能
 
-- **Type-safe Communication**: Automatic code generation from KDL schemas
-- **Ultra-low Latency**: High-speed communication via QUIC (HTTP/3) transport
-- **Built-in Security**: TLS 1.3 encryption with automatic development certificate generation
-- **CGP (Context-Generic Programming) Support**: Extensible handler system
-- **Async-first**: Fully asynchronous implementation based on Tokio
-- **Bidirectional Streaming**: Full-duplex communication via UnisonStream
-- **Service-oriented**: Lifecycle management via high-level Service trait
+- **型安全な通信**: KDLスキーマベースの自動コード生成により、コンパイル時の型チェックを実現
+- **超低レイテンシー**: QUIC (HTTP/3) トランスポートによる次世代の高速通信
+- **組み込みセキュリティ**: TLS 1.3完全暗号化と開発用証明書の自動生成
+- **CGP (Context-Generic Programming)**: 拡張可能なコンポーネントベースアーキテクチャ
+- **完全非同期**: Rust 2024エディション + Tokioによる最新の非同期実装
+- **双方向ストリーミング**: QUICベースの全二重通信によるリアルタイムデータ転送
+- **スキーマファースト**: プロトコル定義駆動開発による一貫した実装
 
-## 🚀 Quick Start
+## 🚀 クイックスタート
 
-### Installation
+### インストール
 
 ```toml
 [dependencies]
-unison-protocol = "0.1.0-alpha1"
+unison-protocol = "^0.1"
 tokio = { version = "1.40", features = ["full"] }
 serde_json = "1.0"
 anyhow = "1.0"
 tracing = "0.1"
 ```
 
-### Basic Usage
+### 基本的な使用方法
 
-#### 1. Protocol Definition (KDL)
+#### 1. プロトコル定義 (KDL)
 
 ```kdl
 // schemas/my_service.kdl
@@ -60,7 +60,7 @@ protocol "my-service" version="1.0.0" {
 }
 ```
 
-#### 2. Server Implementation
+#### 2. サーバー実装
 
 ```rust
 use unison_protocol::{ProtocolServer, NetworkError};
@@ -70,25 +70,25 @@ use serde_json::json;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut server = ProtocolServer::new();
 
-    // Register handler
+    // ハンドラーの登録
     server.register_handler("createUser", |payload| {
         let name = payload["name"].as_str().unwrap();
         let email = payload["email"].as_str().unwrap();
 
-        // User creation logic
+        // ユーザー作成ロジック
         Ok(json!({
             "id": uuid::Uuid::new_v4().to_string(),
             "created_at": chrono::Utc::now().to_rfc3339()
         }))
     });
 
-    // Start QUIC server
+    // QUICサーバーの起動
     server.listen("127.0.0.1:8080").await?;
     Ok(())
 }
 ```
 
-#### 3. Client Implementation
+#### 3. クライアント実装
 
 ```rust
 use unison_protocol::ProtocolClient;
@@ -98,46 +98,46 @@ use serde_json::json;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = ProtocolClient::new();
 
-    // Connect to server
+    // サーバーへの接続
     client.connect("127.0.0.1:8080").await?;
 
-    // RPC call
+    // RPC呼び出し
     let response = client.call("createUser", json!({
         "name": "Alice",
         "email": "alice@example.com"
     })).await?;
 
-    println!("Created user: {}", response);
+    println!("作成されたユーザー: {}", response);
     Ok(())
 }
 ```
 
-## 🏗️ Architecture
+## 🏗️ アーキテクチャ
 
-### Component Structure
+### コンポーネント構造
 
 ```
 unison-protocol/
-├── 🎯 Core Layer
-│   ├── parser/          # KDL schema parser
-│   ├── codegen/        # Code generators (Rust/TypeScript)
-│   └── types/          # Basic type definitions
+├── 🎯 コア層
+│   ├── parser/          # KDLスキーマパーサー
+│   ├── codegen/        # コードジェネレーター (Rust/TypeScript)
+│   └── types/          # 基本型定義
 │
-├── 🌐 Network Layer
-│   ├── quic/           # QUIC transport implementation
-│   ├── client/         # Protocol client
-│   ├── server/         # Protocol server
-│   └── service/        # Service abstraction layer
+├── 🌐 ネットワーク層
+│   ├── quic/           # QUICトランスポート実装
+│   ├── client/         # プロトコルクライアント
+│   ├── server/         # プロトコルサーバー
+│   └── service/        # サービス抽象化層
 │
-└── 🧩 Context Layer (CGP)
-    ├── adapter/        # Existing system integration
-    ├── handlers/       # Extensible handlers
-    └── traits/         # Generic trait definitions
+└── 🧩 コンテキスト層 (CGP)
+    ├── adapter/        # 既存システム統合
+    ├── handlers/       # 拡張可能ハンドラー
+    └── traits/         # ジェネリックトレイト定義
 ```
 
-### Core Components
+### コアコンポーネント
 
-#### 1. **UnisonStream** - Low-level Bidirectional Streaming
+#### 1. **UnisonStream** - 低レベル双方向ストリーミング
 
 ```rust
 pub trait UnisonStream: Send + Sync {
@@ -148,7 +148,7 @@ pub trait UnisonStream: Send + Sync {
 }
 ```
 
-#### 2. **Service** - High-level Service Abstraction
+#### 2. **Service** - 高レベルサービス抽象化
 
 ```rust
 pub trait Service: UnisonStream {
@@ -159,57 +159,57 @@ pub trait Service: UnisonStream {
 }
 ```
 
-#### 3. **CGP Context** - Extensible Context
+#### 3. **CGP Context** - 拡張可能なコンテキスト
 
 ```rust
 pub struct CgpProtocolContext<T, R, H> {
-    transport: T,      // Transport layer
-    registry: R,       // Service registry
-    handlers: H,       // Message handlers
+    transport: T,      // トランスポート層
+    registry: R,       // サービスレジストリ
+    handlers: H,       // メッセージハンドラー
 }
 ```
 
-## 📊 Performance
+## 📊 パフォーマンス
 
-### Benchmark Results
+### ベンチマーク結果
 
-| Metric | QUIC | WebSocket | HTTP/2 |
+| メトリクス | QUIC | WebSocket | HTTP/2 |
 |--------|------|-----------|--------|
-| Latency (p50) | 2.3ms | 5.1ms | 8.2ms |
-| Latency (p99) | 12.5ms | 23.4ms | 45.6ms |
-| Throughput | 850K msg/s | 420K msg/s | 180K msg/s |
-| CPU Usage | 35% | 48% | 62% |
+| レイテンシ (p50) | 2.3ms | 5.1ms | 8.2ms |
+| レイテンシ (p99) | 12.5ms | 23.4ms | 45.6ms |
+| スループット | 850K msg/s | 420K msg/s | 180K msg/s |
+| CPU使用率 | 35% | 48% | 62% |
 
-*Test environment: AMD Ryzen 9 5900X, 32GB RAM, localhost*
+*テスト環境: AMD Ryzen 9 5900X, 32GB RAM, localhost*
 
-## 🧪 Testing
+## 🧪 テスト
 
-### Running Tests
+### テストの実行
 
 ```bash
-# Run all tests
+# 全テストの実行
 cargo test
 
-# Integration tests only
+# 統合テストのみ
 cargo test --test quic_integration_test
 
-# With verbose logging
+# 詳細ログ付き
 RUST_LOG=debug cargo test -- --nocapture
 ```
 
-### Test Coverage
+### テストカバレッジ
 
-- ✅ QUIC connection/disconnection
-- ✅ Message serialization
-- ✅ Handler registration/invocation
-- ✅ Error handling
-- ✅ SystemStream lifecycle
-- ✅ Service metadata management
-- ✅ Automatic certificate generation
+- ✅ QUIC接続/切断
+- ✅ メッセージシリアライゼーション
+- ✅ ハンドラー登録/呼び出し
+- ✅ エラーハンドリング
+- ✅ SystemStreamライフサイクル
+- ✅ サービスメタデータ管理
+- ✅ 証明書自動生成
 
-## 🔧 Advanced Usage
+## 🔧 高度な使用方法
 
-### Custom Handler Implementation
+### カスタムハンドラー実装
 
 ```rust
 use unison_protocol::context::{Handler, HandlerRegistry};
@@ -219,108 +219,108 @@ struct MyCustomHandler;
 #[async_trait]
 impl Handler for MyCustomHandler {
     async fn handle(&self, input: Value) -> Result<Value, NetworkError> {
-        // Custom logic
+        // カスタムロジック
         Ok(json!({"status": "processed"}))
     }
 }
 
-// Registration
+// 登録
 let registry = HandlerRegistry::new();
 registry.register("custom", MyCustomHandler).await;
 ```
 
-### Streaming Communication
+### ストリーミング通信
 
 ```rust
 use unison_protocol::network::UnisonStream;
 
-// Create stream
+// ストリームの作成
 let mut stream = client.start_system_stream("data_feed", json!({})).await?;
 
-// Async send/receive
+// 非同期送受信
 tokio::spawn(async move {
     while stream.is_active() {
         match stream.receive().await {
-            Ok(data) => println!("Received: {}", data),
-            Err(e) => eprintln!("Error: {}", e),
+            Ok(data) => println!("受信: {}", data),
+            Err(e) => eprintln!("エラー: {}", e),
         }
     }
 });
 ```
 
-### Service Metrics
+### サービスメトリクス
 
 ```rust
 let stats = service.get_performance_stats().await?;
-println!("Latency: {:?}", stats.avg_latency);
-println!("Throughput: {} msg/s", stats.messages_per_second);
-println!("Active streams: {}", stats.active_streams);
+println!("レイテンシ: {:?}", stats.avg_latency);
+println!("スループット: {} msg/s", stats.messages_per_second);
+println!("アクティブストリーム: {}", stats.active_streams);
 ```
 
-## 📚 Documentation
+## 📚 ドキュメント
 
-- [API Reference](https://docs.rs/unison-protocol)
-- [Protocol Specification](docs/en/PROTOCOL_SPEC.md)
-- [Architecture Guide](docs/en/ARCHITECTURE.md)
-- [Contribution Guide](CONTRIBUTING.md)
+- [APIリファレンス](https://docs.rs/unison-protocol)
+- [プロトコル仕様](PROTOCOL_SPEC.md)
+- [アーキテクチャガイド](docs/ja/architecture.md)
+- [コントリビューションガイド](CONTRIBUTING.ja.md)
 
-## 🛠️ Development
+## 🛠️ 開発
 
-### Build Requirements
+### ビルド要件
 
-- Rust 1.70 or higher
-- Tokio 1.40 or higher
-- OpenSSL or BoringSSL (for QUIC)
+- Rust 1.70 以上
+- Tokio 1.40 以上
+- OpenSSL または BoringSSL (QUIC用)
 
-### Development Environment Setup
+### 開発環境のセットアップ
 
 ```bash
-# Clone repository
+# リポジトリのクローン
 git clone https://github.com/chronista-club/unison-protocol
 cd unison-protocol
 
-# Install dependencies
+# 依存関係のインストール
 cargo build
 
-# Start development server
+# 開発サーバーの起動
 cargo run --example unison_ping_server
 
-# Run tests
+# テストの実行
 cargo test
 ```
 
-### Code Generation
+### コード生成
 
 ```bash
-# Generate code from KDL schema
+# KDLスキーマからコード生成
 cargo build --features codegen
 
-# Generate TypeScript definitions
+# TypeScript定義の生成
 cargo run --bin generate-ts
 ```
 
-## 🤝 Contributing
+## 🤝 コントリビューション
 
-Pull requests are welcome! Please follow these guidelines:
+プルリクエストを歓迎します！以下のガイドラインに従ってください：
 
-1. Fork and create a feature branch
-2. Add tests (coverage 80% or higher)
-3. Run `cargo fmt` and `cargo clippy`
-4. Use [Conventional Commits](https://www.conventionalcommits.org/) for commit messages
-5. Submit a pull request
+1. フォークしてフィーチャーブランチを作成
+2. テストを追加（カバレッジ80%以上）
+3. `cargo fmt` と `cargo clippy` を実行
+4. [Conventional Commits](https://www.conventionalcommits.org/) に従ったコミットメッセージ
+5. プルリクエストを提出
 
-## 📄 License
+## 📄 ライセンス
 
-MIT License - See [LICENSE](LICENSE) file for details.
+MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照してください。
 
-## 🙏 Acknowledgments
+## 🙏 謝辞
 
-- [Quinn](https://github.com/quinn-rs/quinn) - QUIC implementation
-- [KDL](https://kdl.dev/) - Configuration language
-- [Tokio](https://tokio.rs/) - Async runtime
+- [Quinn](https://github.com/quinn-rs/quinn) - QUIC実装
+- [KDL](https://kdl.dev/) - 設定言語
+- [Tokio](https://tokio.rs/) - 非同期ランタイム
 
 ---
 
-**Unison Protocol** - *Harmonizing communication across languages and platforms* 🎵
+**Unison Protocol** - *言語とプラットフォームを越えた通信の調和* 🎵
 
 [GitHub](https://github.com/chronista-club/unison-protocol) | [Crates.io](https://crates.io/crates/unison-protocol) | [Discord](https://discord.gg/unison-protocol)

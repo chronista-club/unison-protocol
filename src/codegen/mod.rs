@@ -7,12 +7,12 @@ pub mod typescript;
 pub use rust::RustGenerator;
 pub use typescript::TypeScriptGenerator;
 
-/// Trait for code generators
+/// コードジェネレータのトレイト
 pub trait CodeGenerator {
-    /// Generate code from a parsed schema
+    /// パース済みスキーマからコードを生成
     fn generate(&self, schema: &ParsedSchema, type_registry: &TypeRegistry) -> Result<String>;
-    
-    /// Generate code and write to file
+
+    /// コードを生成してファイルに書き込み
     fn generate_to_file(&self, schema: &ParsedSchema, type_registry: &TypeRegistry, path: &str) -> Result<()> {
         let code = self.generate(schema, type_registry)?;
         std::fs::write(path, code)?;

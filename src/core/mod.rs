@@ -1,24 +1,24 @@
-//! Core Unison Protocol types and definitions
-//! 
-//! This module provides the fundamental types and structures
-//! that form the basis of all Unison Protocol communications.
+//! Unison Protocolのコア型と定義
+//!
+//! このモジュールは、すべてのUnison Protocol通信の基礎となる
+//! 基本的な型と構造体を提供します。
 
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-/// Standard message format for Unison protocol
+/// Unisonプロトコルの標準メッセージフォーマット
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnisonMessage {
-    /// Unique message identifier
+    /// 一意のメッセージ識別子
     pub id: String,
-    /// RPC method name
+    /// RPCメソッド名
     pub method: String,
-    /// Method parameters as JSON
+    /// JSON形式のメソッドパラメータ
     pub payload: serde_json::Value,
-    /// Message creation timestamp
+    /// メッセージ作成タイムスタンプ
     pub timestamp: DateTime<Utc>,
-    /// Protocol version
+    /// プロトコルバージョン
     #[serde(default = "default_version")]
     pub version: String,
 }

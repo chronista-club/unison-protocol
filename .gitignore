@@ -13,6 +13,7 @@ Cargo.lock
 .DS_Store
 Thumbs.db
 
+
 # Build artifacts
 *.pdb
 
@@ -40,3 +41,5 @@ Thumbs.db
 assets/certs/*.pem
 assets/certs/*.der
 !assets/certs/README.md
+
+*.code-workspace

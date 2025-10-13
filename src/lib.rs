@@ -57,20 +57,19 @@ pub mod core;
 // CGPベースのコンテキストモジュール
 pub mod context;
 
+// よく使用される型と関数のprelude
+pub mod prelude;
+
 // 生成コードの再エクスポート
 pub mod generated {
     // build.rsによって生成される
     include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 }
 
-// よく使用される型の再エクスポート
-pub use parser::{SchemaParser, ParsedSchema};
-pub use codegen::{RustGenerator, TypeScriptGenerator, CodeGenerator};
-pub use network::{ProtocolClient, ProtocolServer, UnisonClient, UnisonServer, UnisonServerExt};
-
-// エラー型
-pub use parser::ParseError as UnisonParseError;
-pub use network::NetworkError as UnisonNetworkError;
+// preludeの型を内部で使用
+use parser::{SchemaParser, ParsedSchema, ParseError as UnisonParseError};
+use codegen::{RustGenerator, TypeScriptGenerator, CodeGenerator};
+use network::{ProtocolClient, ProtocolServer};
 
 /// Unison Protocolのメインエントリポイント
 pub struct UnisonProtocol {

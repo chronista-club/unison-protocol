@@ -1,145 +1,161 @@
-# 🎵 Unison Protocol Specification
+# 🎵 Unison Protocol 技術仕様書
 
-**Version**: 1.0.0  
-**Date**: 2025-01-04  
-**Status**: Draft
+**バージョン**: 1.0.0  
+**日付**: 2025-01-04  
+**ステータス**: ドラフト
 
-## Overview
+## 目次
 
-Unison Protocol is a KDL-based type-safe communication framework designed for real-time bidirectional communication between clients and servers. The protocol enables automatic code generation for multiple programming languages while maintaining strong type safety and comprehensive error handling.
+- [概要](#概要)
+- [目標と設計原則](#目標と設計原則)
+- [プロトコル構造](#プロトコル構造)
+- [コアプロトコルメッセージ](#コアプロトコルメッセージ)
+- [スキーマ定義言語](#スキーマ定義言語)
+- [ネットワークプロトコル](#ネットワークプロトコル)
+- [コード生成](#コード生成)
+- [セキュリティ考慮事項](#セキュリティ考慮事項)
+- [パフォーマンス特性](#パフォーマンス特性)
+- [バージョニングと互換性](#バージョニングと互換性)
+- [実装ガイドライン](#実装ガイドライン)
+- [将来の機能拡張](#将来の機能拡張)
+- [付録](#付録)
 
-## Goals and Design Principles
+## 概要
 
-### Primary Goals
+Unison Protocolは、クライアントとサーバー間でのリアルタイム双方向通信を実現するために設計された、KDLベースの型安全通信フレームワークです。このプロトコルは、強力な型安全性と包括的なエラーハンドリングを維持しながら、複数のプログラミング言語向けの自動コード生成を可能にします。
 
-1. **Type Safety**: Ensure compile-time and runtime type checking across all supported languages
-2. **Developer Experience**: Provide a simple, intuitive API with comprehensive error messages
-3. **Multi-language Support**: Generate idiomatic code for multiple programming languages
-4. **Real-time Communication**: Support bidirectional communication with low latency
-5. **Extensibility**: Allow easy addition of new methods, types, and protocols
+## 目標と設計原則
 
-### Design Principles
+### 主要目標
 
-- **Schema-first**: Protocol definitions drive implementation, not the other way around
-- **Async-first**: Built with async/await patterns as the foundation
-- **Error-resilient**: Comprehensive error handling and recovery mechanisms
-- **Transport-agnostic**: Support multiple transport layers (WebSocket, TCP, etc.)
-- **Version-compatible**: Forward and backward compatibility support
+1. **型安全性**: 対応する全ての言語でコンパイル時・実行時の型チェックを保証
+2. **開発者体験**: 包括的なエラーメッセージを持つ、シンプルで直感的なAPI の提供
+3. **多言語サポート**: 複数プログラミング言語向けのイディオマティックなコード生成
+4. **リアルタイム通信**: 低レイテンシーの双方向通信をサポート
+5. **拡張性**: 新しいメソッド、型、プロトコルの簡単な追加を可能にする
 
-## Protocol Structure
+### 設計原則
 
-### Hierarchy
+- **スキーマファースト**: プロトコル定義が実装を牽引し、逆ではない
+- **非同期優先**: async/awaitパターンを基盤として構築
+- **エラー耐性**: 包括的なエラーハンドリングと回復メカニズム
+- **トランスポート非依存**: 複数のトランスポートレイヤー（WebSocket、TCP等）をサポート
+- **バージョン互換性**: 前方・後方互換性をサポート
+
+## プロトコル構造
+
+### 階層構造
 
 ```
-Protocol
-├── Metadata (name, version, namespace, description)
-├── Types (custom type definitions)
-├── Messages (structured data definitions)
-└── Services
-    └── Methods (RPC endpoints with request/response schemas)
+Protocol（プロトコル）
+├── Metadata（メタデータ） (name, version, namespace, description)
+├── Types（型） (カスタム型定義)
+├── Messages（メッセージ） (構造化データ定義)
+└── Services（サービス）
+    └── Methods（メソッド）
 ```
 
-### Protocol Definition Format
+### プロトコル定義フォーマット
 
-Unison Protocol uses KDL (KDL Document Language) for schema definitions:
+Unison Protocolは、スキーマ定義にKDL（KDL Document Language）を使用します：
 
 ```kdl
 protocol "service-name" version="1.0.0" {
     namespace "com.example.service"
-    description "Service description"
+    description "サービス説明"
     
-    // Type definitions
-    // Message definitions
-    // Service definitions
+    // 型定義
+    // メッセージ定義
+    // サービス定義
 }
 ```
 
-## Core Protocol Messages
+## コアプロトコルメッセージ
 
 ### UnisonMessage
 
-The standard message format for all Unison Protocol communications:
+全てのUnison Protocol通信における標準メッセージ形式：
 
 ```rust
 struct UnisonMessage {
-    id: String,           // Unique message identifier
-    method: String,       // RPC method name
-    payload: JsonValue,   // Method parameters as JSON
-    timestamp: DateTime,  // Message creation timestamp
-    version: String,      // Protocol version (default: "1.0.0")
+    id: String,           // 一意メッセージ識別子
+    method: String,       // RPCメソッド名
+    payload: JsonValue,   // JSON形式のメソッドパラメータ
+    timestamp: DateTime,  // メッセージ作成タイムスタンプ
+    version: String,      // プロトコルバージョン（デフォルト: "1.0.0"）
 }
 ```
 
 ### UnisonResponse
 
-The standard response format:
+標準レスポンス形式：
 
 ```rust
 struct UnisonResponse {
-    id: String,                    // Corresponding request message ID
-    success: bool,                 // Operation success indicator
-    payload: Option<JsonValue>,    // Response data as JSON
-    error: Option<String>,         // Error message if operation failed
-    timestamp: DateTime,           // Response creation timestamp
-    version: String,               // Protocol version
+    id: String,                    // 対応するリクエストメッセージID
+    success: bool,                 // 操作成功インジケーター
+    payload: Option<JsonValue>,    // JSON形式のレスポンスデータ
+    error: Option<String>,         // 操作失敗時のエラーメッセージ
+    timestamp: DateTime,           // レスポンス作成タイムスタンプ
+    version: String,               // プロトコルバージョン
 }
 ```
 
 ### UnisonError
 
-Structured error information:
+構造化されたエラー情報：
 
 ```rust
 struct UnisonError {
-    code: String,                  // Error code identifier
-    message: String,               // Human-readable error message
-    details: Option<JsonValue>,    // Additional error context
-    timestamp: DateTime,           // Error occurrence timestamp
+    code: String,                  // エラーコード識別子
+    message: String,               // 人間が読めるエラーメッセージ
+    details: Option<JsonValue>,    // 追加のエラーコンテキスト
+    timestamp: DateTime,           // エラー発生タイムスタンプ
 }
 ```
 
-## Schema Definition Language
+## スキーマ定義言語
 
-### Basic Types
+### 基本型
 
-Unison Protocol supports the following basic types:
+Unison Protocolは以下の基本型をサポートします：
 
-| Type | Description | Rust Mapping | TypeScript Mapping |
+| 型 | 説明 | Rustマッピング | TypeScriptマッピング |
 |------|-------------|--------------|---------------------|
-| `string` | UTF-8 text | `String` | `string` |
-| `number` | Numeric values | `f64` | `number` |
-| `bool` | Boolean | `bool` | `boolean` |
-| `timestamp` | ISO-8601 datetime | `DateTime<Utc>` | `string` |
-| `json` | Arbitrary JSON | `serde_json::Value` | `any` |
-| `array` | List of items | `Vec<T>` | `T[]` |
+| `string` | UTF-8テキスト | `String` | `string` |
+| `number` | 数値 | `f64` | `number` |
+| `bool` | 真偽値 | `bool` | `boolean` |
+| `timestamp` | ISO-8601日時 | `DateTime<Utc>` | `string` |
+| `json` | 任意のJSON | `serde_json::Value` | `any` |
+| `array` | アイテムのリスト | `Vec<T>` | `T[]` |
 
-### Field Modifiers
+### フィールド修飾子
 
-- `required=true`: Field must be present (default: false)
-- `default=value`: Default value for optional fields
-- `description="text"`: Field documentation
+- `required=true`: フィールドが必須（デフォルト: false）
+- `default=value`: オプションフィールドのデフォルト値
+- `description="text"`: フィールドドキュメンテーション
 
-### Example Schema
+### スキーマ例
 
 ```kdl
 protocol "user-management" version="1.0.0" {
     namespace "com.example.users"
-    description "User management service"
+    description "ユーザー管理サービス"
     
     message "User" {
-        description "User account information"
-        field "id" type="string" required=true description="Unique user identifier"
-        field "username" type="string" required=true description="User login name"
-        field "email" type="string" required=true description="User email address"
-        field "created_at" type="timestamp" required=true description="Account creation time"
-        field "is_active" type="bool" required=false default=true description="Account active status"
+        description "ユーザーアカウント情報"
+        field "id" type="string" required=true description="一意のユーザー識別子"
+        field "username" type="string" required=true description="ユーザーログイン名"
+        field "email" type="string" required=true description="ユーザーメールアドレス"
+        field "created_at" type="timestamp" required=true description="アカウント作成時刻"
+        field "is_active" type="bool" required=false default=true description="アカウント有効ステータス"
     }
     
     service "UserService" {
-        description "User account management operations"
+        description "ユーザーアカウント管理操作"
         
         method "create_user" {
-            description "Create a new user account"
+            description "新しいユーザーアカウントを作成"
             request {
                 field "username" type="string" required=true
                 field "email" type="string" required=true
@@ -152,7 +168,7 @@ protocol "user-management" version="1.0.0" {
         }
         
         method "get_user" {
-            description "Retrieve user information by ID"
+            description "IDによってユーザー情報を取得"
             request {
                 field "user_id" type="string" required=true
             }
@@ -162,7 +178,7 @@ protocol "user-management" version="1.0.0" {
         }
         
         method "list_users" {
-            description "List users with optional filtering"
+            description "オプションフィルタリング付きでユーザーをリスト"
             request {
                 field "filter" type="string" required=false
                 field "limit" type="number" required=false default=50
@@ -177,69 +193,69 @@ protocol "user-management" version="1.0.0" {
 }
 ```
 
-## Network Protocol
+## ネットワークプロトコル
 
-### Transport Layer
+### トランスポートレイヤー
 
-Unison Protocol is transport-agnostic but primarily designed for WebSocket communication:
+Unison Protocolはトランスポート非依存ですが、主にWebSocket通信用に設計されています：
 
-- **WebSocket**: Real-time bidirectional communication (primary)
-- **TCP**: Direct socket communication (planned)
-- **HTTP**: Request-response pattern (planned)
+- **WebSocket**: リアルタイム双方向通信（主要）
+- **TCP**: 直接ソケット通信（計画中）
+- **HTTP**: リクエスト・レスポンスパターン（計画中）
 
-### Message Flow
+### メッセージフロー
 
-1. **Connection Establishment**
-   - Client initiates connection to server
-   - Optional handshake exchange for version negotiation
+1. **接続確立**
+   - クライアントがサーバーへの接続を開始
+   - バージョンネゴシエーション用のオプションハンドシェイク交換
 
-2. **Method Invocation**
-   - Client sends `UnisonMessage` with method name and parameters
-   - Server processes request and sends `UnisonResponse`
-   - Errors are returned as `UnisonResponse` with `success: false`
+2. **メソッド呼び出し**
+   - クライアントがメソッド名とパラメータと共に`UnisonMessage`を送信
+   - サーバーがリクエストを処理し、`UnisonResponse`を送信
+   - エラーは`success: false`の`UnisonResponse`として返される
 
-3. **Connection Management**
-   - Heartbeat/ping mechanism for connection health
-   - Graceful disconnection handling
+3. **接続管理**
+   - 接続ヘルスのためのハートビート/ping メカニズム
+   - 接続の正常な切断ハンドリング
 
-### Error Handling
+### エラーハンドリング
 
-#### Client-side Errors
-- Connection failures
-- Timeout errors
-- Serialization/deserialization errors
-- Protocol version mismatches
+#### クライアントサイドエラー
+- 接続失敗
+- タイムアウトエラー
+- シリアライゼーション/デシリアライゼーションエラー
+- プロトコルバージョン不整合
 
-#### Server-side Errors
-- Method not found
-- Invalid parameters
-- Processing failures
-- Resource limitations
+#### サーバーサイドエラー
+- メソッドが見つからない
+- 無効なパラメータ
+- 処理失敗
+- リソース制限
 
-#### Error Response Format
+#### エラーレスポンス形式
 
 ```json
 {
   "id": "request-message-id",
   "success": false,
-  "error": "Method not found: unknown_method",
+  "error": "メソッドが見つかりません: unknown_method",
   "timestamp": "2025-01-04T10:30:00Z",
   "version": "1.0.0"
 }
 ```
 
-## Code Generation
+## コード生成
 
-### Rust Code Generation
+### Rustコード生成
 
-Generated Rust code includes:
+生成されるRustコードには以下が含まれます：
 
-- **Type Definitions**: Structs with Serde annotations
-- **Client Traits**: Async methods for each service method
-- **Server Traits**: Handler registration for methods
-- **Validation**: Request/response validation logic
+- **型定義**: Serde注釈付きの構造体
+- **クライアントトレイト**: 各サービスメソッドの非同期メソッド
+- **サーバートレイト**: メソッドのハンドラー登録
+- **検証**: リクエスト/レスポンス検証ロジック
 
-Example generated code:
+生成コードの例：
 
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -273,122 +289,119 @@ pub trait UserServiceClient {
 }
 ```
 
-### TypeScript Code Generation (Planned)
+### TypeScriptコード生成（計画中）
 
-Generated TypeScript code will include:
+生成されるTypeScriptコードには以下が含まれる予定です：
 
-- **Interface Definitions**: TypeScript interfaces for all types
-- **Client Classes**: Promise-based client implementations
-- **Type Guards**: Runtime type validation
-- **Error Types**: Structured error handling
+- **インターフェース定義**: すべての型のTypeScriptインターフェース
+- **クライアントクラス**: Promiseベースのクライアント実装
+- **型ガード**: 実行時型検証
+- **エラー型**: 構造化されたエラーハンドリング
 
-## Security Considerations
+## セキュリティ考慮事項
 
-### Authentication and Authorization
+### 認証と認可
 
-- Protocol-level authentication not specified (transport-layer responsibility)
-- Service-level authorization through custom handlers
-- Session management through application-specific tokens
+- プロトコルレベルの認証は未指定（トランスポートレイヤーの責任）
+- カスタムハンドラーを通じたサービスレベルの認可
+- アプリケーション固有トークンを通じたセッション管理
 
-### Input Validation
+### 入力検証
 
-- Automatic validation of required fields
-- Type checking for all parameters
-- Custom validation through handler implementation
+- 必須フィールドの自動検証
+- 全パラメータの型チェック
+- ハンドラー実装を通じたカスタム検証
 
-### Transport Security
+### トランスポートセキュリティ
 
-- TLS/WSS recommended for production use
-- Certificate validation and pinning
-- Connection encryption and integrity
+- 本番使用にはTLS/WSSを推奨
+- 証明書検証とピン留め
+- 接続暗号化と完全性
 
-## Performance Characteristics
+## パフォーマンス特性
 
-### Message Size
+### メッセージサイズ
 
-- JSON-based serialization
-- Typical message overhead: 100-200 bytes
-- Payload size limited by transport layer
+- JSONベースのシリアライゼーション
+- 典型的なメッセージオーバーヘッド: 100-200バイト
+- ペイロードサイズはトランスポートレイヤーによって制限
 
-### Latency
+### レイテンシー
 
-- WebSocket: Sub-millisecond protocol overhead
-- Network latency determines overall performance
-- Async processing eliminates blocking operations
+- WebSocket: サブミリ秒のプロトコルオーバーヘッド
+- ネットワークレイテンシーが全体的なパフォーマンスを決定
+- 非同期処理によってブロッキング操作を排除
 
-### Throughput
+### スループット
 
-- Limited by transport layer and handler implementation
-- Concurrent request handling through async runtime
-- Connection pooling for high-load scenarios
+- トランスポートレイヤーとハンドラー実装によって制限
+- 非同期ランタイムを通じた同時リクエストハンドリング
+- 高負荷シナリオ向けの接続プール
 
-## Versioning and Compatibility
+## バージョニングと互換性
 
-### Protocol Versioning
+### プロトコルバージョニング
 
-- Semantic versioning (MAJOR.MINOR.PATCH)
-- Version specified in protocol definition
-- Version negotiation during handshake
+- セマンティックバージョニング（MAJOR.MINOR.PATCH）
+- プロトコル定義で指定されるバージョン
+- ハンドシェイク時のバージョンネゴシエーション
 
-### Backward Compatibility
+### 後方互換性
 
-- New optional fields: Compatible
-- New required fields: Breaking change
-- New methods: Compatible
-- Method signature changes: Breaking change
+- 新しいオプションフィールド: 互換
+- 新しい必須フィールド: 破壊的変更
+- 新しいメソッド: 互換
+- メソッドシグネチャーの変更: 破壊的変更
 
-### Forward Compatibility
+### 前方互換性
 
-- Unknown fields ignored during deserialization
-- Unknown methods return "method not found" error
-- Version mismatch handling
+- デシリアライゼーション時に不明フィールドは無視
+- 不明メソッドは「メソッドが見つかりません」エラーを返す
+- バージョン不整合ハンドリング
 
-## Implementation Guidelines
+## 実装ガイドライン
 
-### Client Implementation
+### クライアント実装
 
-1. **Connection Management**: Automatic reconnection, connection pooling
-2. **Request Correlation**: Match requests with responses using message IDs
-3. **Error Handling**: Proper error propagation and user feedback
-4. **Timeout Handling**: Request timeouts and retry logic
+1. **接続管理**: 自動再接続、接続プール
+2. **リクエスト相関**: メッセージIDを使ったリクエストとレスポンスのマッチング
+3. **エラーハンドリング**: 適切なエラー伝播とユーザーフィードバック
+4. **タイムアウトハンドリング**: リクエストタイムアウトとリトライロジック
 
-### Server Implementation
+### サーバー実装
 
-1. **Handler Registration**: Type-safe handler registration
-2. **Concurrent Processing**: Async request processing
-3. **Resource Management**: Connection limits and cleanup
-4. **Logging and Monitoring**: Request/response logging and metrics
+1. **ハンドラー登録**: 型安全なハンドラー登録
+2. **同時処理**: 非同期リクエスト処理
+3. **リソース管理**: 接続制限とクリーンアップ
+4. **ログとモニタリング**: リクエスト/レスポンスログとメトリクス
 
-## Future Enhancements
+## 将来の機能拡張
 
-### Planned Features
+### 計画中の機能
 
-- **Streaming Support**: Server-sent events and bidirectional streaming
-- **Schema Evolution**: Runtime schema updates and migration
-- **Compression**: Message compression for large payloads
-- **Batch Operations**: Multiple operations in single request
+- **ストリーミングサポート**: サーバー送信イベントと双方向ストリーミング
+- **スキーマ進化**: 実行時スキーマ更新とマイグレーション
+- **圧縮**: 大きなペイロード向けのメッセージ圧縮
+- **バッチ操作**: 単一リクエストでの複数操作
 
-### Language Support Expansion
+### 言語サポート拡張
 
-- Python client/server generation
-- Go client/server generation
-- Java client generation
-- C# client generation
+- TypeScript クライアント・サーバー生成の完成
 
-## Appendix
+## 付録
 
-### References
+### 参考資料
 
-- [KDL Specification](https://kdl.dev/)
-- [WebSocket Protocol (RFC 6455)](https://tools.ietf.org/html/rfc6455)
-- [JSON Schema](https://json-schema.org/)
+- [KDL仕様](https://kdl.dev/)
+- [WebSocketプロトコル (RFC 6455)](https://tools.ietf.org/html/rfc6455)
+- [JSONスキーマ](https://json-schema.org/)
 
-### Change Log
+### 変更ログ
 
-| Version | Date | Changes |
+| バージョン | 日付 | 変更内容 |
 |---------|------|---------|
-| 1.0.0 | 2025-01-04 | Initial specification |
+| 1.0.0 | 2025-01-04 | 初期仕様 |
 
 ---
 
-*This specification is a living document and will be updated as the protocol evolves.*
+*この仕様書は生きたドキュメントであり、プロトコルの進化と共に更新されます。*

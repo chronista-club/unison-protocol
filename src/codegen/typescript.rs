@@ -17,28 +17,28 @@ impl TypeScriptGenerator {
 impl CodeGenerator for TypeScriptGenerator {
     fn generate(&self, schema: &ParsedSchema, type_registry: &TypeRegistry) -> Result<String> {
         let mut code = String::new();
-        
-        // Add imports
+
+        // インポート文を追加
         code.push_str(&self.generate_imports());
         code.push_str("\n");
-        
-        // Generate enums
+
+        // 列挙型を生成
         for enum_def in &schema.enums {
             code.push_str(&self.generate_enum(enum_def));
             code.push_str("\n\n");
         }
-        
-        // Generate messages as interfaces
+
+        // メッセージをインターフェースとして生成
         for message in &schema.messages {
             code.push_str(&self.generate_message(message, type_registry));
             code.push_str("\n\n");
         }
-        
-        // Generate protocol-specific code
+
+        // プロトコル固有のコードを生成
         if let Some(protocol) = &schema.protocol {
             code.push_str(&self.generate_protocol(protocol, type_registry));
         }
-        
+
         Ok(code)
     }
 }
@@ -56,31 +56,31 @@ export type LanguageCode = string; // ISO 639-1 format
     
     fn generate_protocol(&self, protocol: &Protocol, type_registry: &TypeRegistry) -> String {
         let mut code = String::new();
-        
-        // Generate protocol namespace comment
+
+        // プロトコルのネームスペースコメントを生成
         if let Some(namespace) = &protocol.namespace {
             code.push_str(&format!("// Namespace: {}\n", namespace));
             code.push_str(&format!("// Version: {}\n\n", protocol.version));
         }
-        
-        // Generate protocol enums
+
+        // プロトコルの列挙型を生成
         for enum_def in &protocol.enums {
             code.push_str(&self.generate_enum(enum_def));
             code.push_str("\n\n");
         }
-        
-        // Generate protocol messages
+
+        // プロトコルのメッセージを生成
         for message in &protocol.messages {
             code.push_str(&self.generate_message(message, type_registry));
             code.push_str("\n\n");
         }
-        
-        // Generate service clients
+
+        // サービスクライアントを生成
         for service in &protocol.services {
             code.push_str(&self.generate_service(service, type_registry));
             code.push_str("\n\n");
         }
-        
+
         code
     }
     
@@ -98,16 +98,16 @@ export type LanguageCode = string; // ISO 639-1 format
     }
     
     fn generate_message(&self, message: &Message, type_registry: &TypeRegistry) -> String {
-        // Skip inline messages
+        // インラインメッセージはスキップ
         if message.name.starts_with("_inline_") {
             return String::new();
         }
-        
+
         let name = &message.name;
         let fields: Vec<String> = message.fields.iter()
             .map(|f| self.generate_field(f, type_registry))
             .collect();
-        
+
         format!(
             "export interface {} {{\n{}\n}}",
             name,
@@ -122,8 +122,8 @@ export type LanguageCode = string; // ISO 639-1 format
         let optional = if !field.required { "?" } else { "" };
         
         let mut field_def = format!("  {}{}: {};", name, optional, ts_type);
-        
-        // Add JSDoc comments for constraints and defaults
+
+        // 制約とデフォルト値のJSDocコメントを追加
         let mut comments = Vec::new();
         
         if let Some(default) = &field.default {
@@ -169,7 +169,7 @@ export type LanguageCode = string; // ISO 639-1 format
             FieldType::Custom(name) => {
                 type_registry.get_typescript_type(name)
                     .unwrap_or_else(|| {
-                        // Convert snake_case to PascalCase for TypeScript types
+                        // snake_caseをTypeScriptの型用にPascalCaseへ変換
                         if name == "timestamp" {
                             "Timestamp".to_string()
                         } else if name == "uuid" {
@@ -201,24 +201,24 @@ export type LanguageCode = string; // ISO 639-1 format
         let client_name = format!("{}Client", service.name);
         
         let mut code = String::new();
-        
-        // Generate request/response types for inline messages
+
+        // インラインメッセージのリクエスト/レスポンス型を生成
         code.push_str(&self.generate_inline_types(service, type_registry));
-        
-        // Generate service interface
+
+        // サービスインターフェースを生成
         code.push_str(&format!("export interface {} {{\n", service_name));
-        
+
         for method in &service.methods {
             code.push_str(&self.generate_service_method(method, type_registry));
         }
-        
+
         for stream in &service.streams {
             code.push_str(&self.generate_service_stream(stream, type_registry));
         }
-        
+
         code.push_str("}\n\n");
-        
-        // Generate client class
+
+        // クライアントクラスを生成
         code.push_str(&format!("export class {} {{\n", client_name));
         code.push_str("  constructor(private readonly transport: WebSocketTransport) {}\n\n");
         
@@ -357,7 +357,7 @@ export type LanguageCode = string; // ISO 639-1 format
     }
 }
 
-// WebSocket transport interface (included in generated file)
+// WebSocketトランスポートインターフェース（生成されたファイルに含まれる）
 impl TypeScriptGenerator {
     pub fn generate_transport_interface() -> String {
         r#"// WebSocket Transport Interface
