@@ -7,13 +7,17 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(cp:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(cargo test)",
+      "Bash(cargo build --examples)",
+      "Bash(git checkout -b fix/import-errors-and-warnings)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
-    "context7",
     "serena",
     "SurrealDB",
-    "ichimi"
+    "ichimi",
+    "context7"
   ]
 }

@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Barrier;
 use tracing::{info, Level};
-use unison_protocol::{ProtocolClient, ProtocolServer, UnisonClient, UnisonServer, UnisonServerExt};
-use unison_protocol::network::{NetworkError, quic::QuicClient};
+use unison_protocol::{ProtocolClient, ProtocolServer};
+use unison_protocol::network::{NetworkError, UnisonClient, UnisonServer, UnisonServerExt, quic::QuicClient};
 
 /// ベンチマーク結果
 #[derive(Debug, Clone)]

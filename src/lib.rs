@@ -17,8 +17,7 @@
 //! # use anyhow::Result;
 //! # #[tokio::main]
 //! # async fn main() -> Result<()> {
-//! use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt};
-//! use unison_protocol::network::NetworkError;
+//! use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt, NetworkError};
 //!
 //! // プロトコルスキーマを読み込み
 //! let mut protocol = UnisonProtocol::new();
@@ -69,7 +68,12 @@ pub mod generated {
 // preludeの型を内部で使用
 use parser::{SchemaParser, ParsedSchema, ParseError as UnisonParseError};
 use codegen::{RustGenerator, TypeScriptGenerator, CodeGenerator};
-use network::{ProtocolClient, ProtocolServer};
+
+// よく使用されるトレイトとクライアント/サーバーの再エクスポート
+pub use network::{
+    UnisonClient, UnisonServer, UnisonServerExt, NetworkError,
+    ProtocolClient, ProtocolServer
+};
 
 /// Unison Protocolのメインエントリポイント
 pub struct UnisonProtocol {
