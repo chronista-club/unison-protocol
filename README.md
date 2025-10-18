@@ -7,7 +7,7 @@
 [![Build Status](https://github.com/chronista-club/unison-protocol/workflows/CI/badge.svg)](https://github.com/chronista-club/unison-protocol/actions)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[日本語](README.md) | [English](README.en.md)
+
 
 ## 📌 概要
 
@@ -22,6 +22,8 @@
 - **完全非同期**: Rust 2024エディション + Tokioによる最新の非同期実装
 - **双方向ストリーミング**: QUICベースの全二重通信によるリアルタイムデータ転送
 - **スキーマファースト**: プロトコル定義駆動開発による一貫した実装
+- **ゼロコピー通信**: rkyvベースの効率的なパケットシリアライゼーション
+- **自動圧縮**: 2KB以上のペイロードをzstd Level 1で自動圧縮
 
 ## 🚀 クイックスタート
 
@@ -121,7 +123,8 @@ unison-protocol/
 ├── 🎯 コア層
 │   ├── parser/          # KDLスキーマパーサー
 │   ├── codegen/        # コードジェネレーター (Rust/TypeScript)
-│   └── types/          # 基本型定義
+│   ├── types/          # 基本型定義
+│   └── packet/         # UnisonPacket型定義
 │
 ├── 🌐 ネットワーク層
 │   ├── quic/           # QUICトランスポート実装
@@ -159,7 +162,23 @@ pub trait Service: UnisonStream {
 }
 ```
 
-#### 3. **CGP Context** - 拡張可能なコンテキスト
+#### 3. **UnisonPacket** - ゼロコピー効率的パケット型
+
+```rust
+pub struct UnisonPacket<T: Payloadable> {
+    // rkyv + zstd による効率的なシリアライゼーション
+    // 2KB以上のペイロードは自動圧縮
+    // CRC32チェックサム付き
+}
+
+impl<T: Payloadable> UnisonPacket<T> {
+    pub fn builder() -> UnisonPacketBuilder<T>;
+    pub fn from_bytes(data: Bytes) -> Result<Self, PacketError>;
+    pub fn extract_payload(&self) -> Result<T, PayloadError>;
+}
+```
+
+#### 4. **CGP Context** - 拡張可能なコンテキスト
 
 ```rust
 pub struct CgpProtocolContext<T, R, H> {
@@ -208,6 +227,43 @@ RUST_LOG=debug cargo test -- --nocapture
 - ✅ 証明書自動生成
 
 ## 🔧 高度な使用方法
+
+### UnisonPacketによる効率的な通信
+
+```rust
+use unison_protocol::packet::{UnisonPacket, Payloadable};
+
+// カスタムペイロード定義
+#[derive(Archive, Serialize, Deserialize, Debug)]
+struct MyPayload {
+    message: String,
+    timestamp: i64,
+    data: Vec<u8>,
+}
+
+impl Payloadable for MyPayload {}
+
+// パケットの送信
+let payload = MyPayload {
+    message: "Hello".to_string(),
+    timestamp: 1234567890,
+    data: vec![1, 2, 3, 4, 5],
+};
+
+let packet = UnisonPacket::builder()
+    .payload(payload)
+    .priority(5)
+    .build()?;
+
+// バイト配列への変換（自動圧縮付き）
+let bytes = packet.to_bytes()?;
+stream.send_bytes(bytes).await?;
+
+// パケットの受信（ゼロコピーデシリアライゼーション）
+let received_bytes = stream.receive_bytes().await?;
+let received_packet = UnisonPacket::<MyPayload>::from_bytes(received_bytes)?;
+let received_payload = received_packet.extract_payload()?;
+```
 
 ### カスタムハンドラー実装
 
@@ -262,6 +318,7 @@ println!("アクティブストリーム: {}", stats.active_streams);
 - [APIリファレンス](https://docs.rs/unison-protocol)
 - [プロトコル仕様](PROTOCOL_SPEC.md)
 - [アーキテクチャガイド](docs/ja/architecture.md)
+- [パケットモジュール仕様](docs/ja/packet.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 🛠️ 開発
