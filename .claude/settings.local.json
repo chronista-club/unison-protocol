@@ -12,7 +12,9 @@
       "Bash(cargo build --examples)",
       "Bash(git checkout -b fix/import-errors-and-warnings)",
       "Bash(gh run list --limit 5)",
-      "Bash(gh run view 18610379418 --log-failed)"
+      "Bash(gh run view 18610379418 --log-failed)",
+      "Bash(gh run list --limit 3)",
+      "Bash(rustc --version)"
     ]
   },
   "enableAllProjectMcpServers": true,
