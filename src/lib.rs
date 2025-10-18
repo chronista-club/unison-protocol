@@ -46,12 +46,15 @@
 //! プロトコル定義は、ビルドプロセス中に自動的に強く型付けされた
 //! 分散ノード実装コードにコンパイルされます。
 
-pub mod parser;
 pub mod codegen;
 pub mod network;
+pub mod parser;
 
 // プロトコル定義のコアモジュール
 pub mod core;
+
+// パケット層モジュール
+pub mod packet;
 
 // CGPベースのコンテキストモジュール
 pub mod context;
@@ -66,13 +69,12 @@ pub mod generated {
 }
 
 // preludeの型を内部で使用
-use parser::{SchemaParser, ParsedSchema, ParseError as UnisonParseError};
-use codegen::{RustGenerator, TypeScriptGenerator, CodeGenerator};
+use codegen::{CodeGenerator, RustGenerator, TypeScriptGenerator};
+use parser::{ParseError as UnisonParseError, ParsedSchema, SchemaParser};
 
 // よく使用されるトレイトとクライアント/サーバーの再エクスポート
 pub use network::{
-    UnisonClient, UnisonServer, UnisonServerExt, NetworkError,
-    ProtocolClient, ProtocolServer
+    NetworkError, ProtocolClient, ProtocolServer, UnisonClient, UnisonServer, UnisonServerExt,
 };
 
 /// Unison Protocolのメインエントリポイント
@@ -151,7 +153,7 @@ mod tests {
         let protocol = UnisonProtocol::new();
         assert_eq!(protocol.schemas.len(), 0);
     }
-    
+
     #[test]
     fn test_parse_schema() {
         let schema = r#"
