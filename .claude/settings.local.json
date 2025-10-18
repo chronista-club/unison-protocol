@@ -14,7 +14,13 @@
       "Bash(gh run list --limit 5)",
       "Bash(gh run view 18610379418 --log-failed)",
       "Bash(gh run list --limit 3)",
-      "Bash(rustc --version)"
+      "Bash(rustc --version)",
+      "Bash(gh run view 18610379418)",
+      "Bash(gh run list --limit 2)",
+      "Bash(gh run view 18611149583)",
+      "Bash(gh run view 18611149583 --log-failed)",
+      "Bash(gh run list --limit 1)",
+      "Bash(gh run view 18611161059)"
     ]
   },
   "enableAllProjectMcpServers": true,
