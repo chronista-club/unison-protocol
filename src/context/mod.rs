@@ -51,6 +51,7 @@ pub trait HasErrorHandler {
 // ========================================
 
 /// 汎用トランスポート層トレイト
+#[allow(async_fn_in_trait)]
 pub trait TransportLayer: Send + Sync {
     type Message;
     type Error;
@@ -67,6 +68,7 @@ pub trait TransportLayer: Send + Sync {
 // ========================================
 
 /// サービスレジストリトレイト
+#[allow(async_fn_in_trait)]
 pub trait ServiceRegistry: Send + Sync {
     type Service;
     type Error;
@@ -89,6 +91,7 @@ pub trait HasMessageHandler {
 }
 
 /// メッセージハンドラートレイト
+#[allow(async_fn_in_trait)]
 pub trait MessageHandler: Send + Sync {
     type Input;
     type Output;

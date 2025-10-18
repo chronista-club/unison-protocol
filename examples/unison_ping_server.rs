@@ -1,6 +1,6 @@
 use anyhow::Result;
-use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt, ProtocolServer};
-use unison_protocol::network::NetworkError;
+use unison_protocol::{UnisonProtocol, ProtocolServer};
+use unison_protocol::network::{NetworkError, UnisonServer, UnisonServerExt};
 use serde_json::json;
 use std::time::{Duration, Instant};
 use tracing::{info, Level};

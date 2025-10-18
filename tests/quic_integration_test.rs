@@ -3,8 +3,8 @@ use serde_json::json;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
 use tracing::{info, Level};
-use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt, ProtocolServer, ProtocolClient, UnisonClient};
-use unison_protocol::network::NetworkError;
+use unison_protocol::{UnisonProtocol, ProtocolServer, ProtocolClient};
+use unison_protocol::network::{NetworkError, UnisonServer, UnisonClient, UnisonServerExt};
 
 /// QUIC統合テスト - サーバーとクライアントを同一プロセスでテスト
 #[tokio::test]
@@ -150,7 +150,7 @@ async fn register_test_handlers(server: &mut ProtocolServer, start_time: Instant
 }
 
 /// 統合テストの実行
-async fn run_integration_tests(client: &mut unison_protocol::ProtocolClient) -> Result<()> {
+async fn run_integration_tests(client: &mut ProtocolClient) -> Result<()> {
     info!("🧪 Running integration tests...");
     
     // Test 1: Server time check
