@@ -103,7 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // サーバーへの接続
     client.connect("127.0.0.1:8080").await?;
 
-    // RPC呼び出し
+    // メソッド呼び出し
     let response = client.call("createUser", json!({
         "name": "Alice",
         "email": "alice@example.com"
@@ -190,16 +190,14 @@ pub struct CgpProtocolContext<T, R, H> {
 
 ## 📊 パフォーマンス
 
-### ベンチマーク結果
+### 特徴
 
-| メトリクス | QUIC | WebSocket | HTTP/2 |
-|--------|------|-----------|--------|
-| レイテンシ (p50) | 2.3ms | 5.1ms | 8.2ms |
-| レイテンシ (p99) | 12.5ms | 23.4ms | 45.6ms |
-| スループット | 850K msg/s | 420K msg/s | 180K msg/s |
-| CPU使用率 | 35% | 48% | 62% |
+- **超低レイテンシ**: QUICによる高速通信
+- **高スループット**: マルチストリーム並列処理
+- **効率的**: ゼロコピーデシリアライゼーション
+- **省リソース**: 最適化されたCPU/メモリ使用率
 
-*テスト環境: AMD Ryzen 9 5900X, 32GB RAM, localhost*
+*ベンチマーク結果は実測後に掲載予定*
 
 ## 🧪 テスト
 

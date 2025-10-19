@@ -1,63 +1,63 @@
-# Changelog
+# 変更履歴
 
-All notable changes to this project will be documented in this file.
+このプロジェクトの主要な変更はこのファイルに記録されます。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいており、
+このプロジェクトは [セマンティックバージョニング](https://semver.org/lang/ja/) に準拠しています。
 
 ## [0.1.0] - 2025-01-05
 
-### Added
-- 🎵 Initial release of Unison Protocol with QUIC transport
-- KDL-based schema definition system for type-safe communication
-- QUIC client and server implementation with ultra-low latency transport
-- Schema parser with comprehensive type validation and code generation
-- Modern QUIC transport layer using Quinn + rustls with TLS 1.3
-- Automatic certificate generation and rust-embed support for production
-- Core protocol types: `UnisonMessage`, `UnisonResponse`, `NetworkError`
-- Network abstractions with `UnisonClient`, `UnisonServer`, and `UnisonServerExt` traits
-- Complete documentation and QUIC protocol specification
-- Example implementations:
-  - `unison_ping_server.rs` - QUIC-based ping-pong server with handler registration
-  - `unison_ping_client.rs` - High-performance QUIC client with latency measurement
-- Schema definitions:
-  - `unison_core.kdl` - Core Unison protocol schema
-  - `ping_pong.kdl` - Example ping-pong protocol with multiple methods
-  - `diarkis_devtools.kdl` - Advanced protocol for development tools
-- Comprehensive test suite:
-  - `simple_quic_test.rs` - QUIC functionality and certificate tests
-  - `quic_integration_test.rs` - Full client-server integration testing
-- Build system with automatic certificate generation via `build.rs`
-- MIT License for open source distribution
+### 追加
+- 🎵 QUICトランスポートを採用したUnison Protocolの初期リリース
+- 型安全な通信のためのKDLベースのスキーマ定義システム
+- 超低遅延トランスポートを備えたQUICクライアントとサーバー実装
+- 包括的な型検証とコード生成を備えたスキーマパーサー
+- Quinn + rustlsを使用したTLS 1.3対応の最新QUICトランスポート層
+- 自動証明書生成とプロダクション用rust-embedサポート
+- コアプロトコル型: `UnisonMessage`, `UnisonResponse`, `NetworkError`
+- `UnisonClient`, `UnisonServer`, `UnisonServerExt` トレイトによるネットワーク抽象化
+- 完全なドキュメントとQUICプロトコル仕様
+- 実装例:
+  - `unison_ping_server.rs` - ハンドラー登録機能を備えたQUICベースのping-pongサーバー
+  - `unison_ping_client.rs` - レイテンシ測定付き高性能QUICクライアント
+- スキーマ定義:
+  - `unison_core.kdl` - コアUnisonプロトコルスキーマ
+  - `ping_pong.kdl` - 複数メソッドを含むping-pongプロトコル例
+  - `diarkis_devtools.kdl` - 開発ツール用の高度なプロトコル
+- 包括的なテストスイート:
+  - `simple_quic_test.rs` - QUIC機能と証明書テスト
+  - `quic_integration_test.rs` - 完全なクライアント・サーバー統合テスト
+- `build.rs`による自動証明書生成ビルドシステム
+- オープンソース配布用MITライセンス
 
-### Features
-- **Type Safety**: Compile-time and runtime protocol validation with KDL schemas
-- **QUIC Transport**: Ultra-low latency communication with TLS 1.3 encryption
-- **Multi-Stream Support**: Efficient parallel communication over single connection
-- **Zero Configuration**: Automatic certificate generation for development environments
-- **Production Ready**: rust-embed support for embedded certificates in binaries
-- **Schema Validation**: KDL-based protocol definitions with comprehensive validation
-- **Code Generation**: Automatic client/server code generation (Rust complete, TypeScript planned)
-- **Async First**: Built with tokio for high-performance async I/O and futures
-- **Comprehensive Testing**: Single-process integration tests with full client-server scenarios
-- **Developer Experience**: Rich logging, error handling, and debugging support with tracing
+### 機能
+- **型安全性**: KDLスキーマによるコンパイル時と実行時のプロトコル検証
+- **QUICトランスポート**: TLS 1.3暗号化による超低遅延通信
+- **マルチストリームサポート**: 単一接続での効率的な並列通信
+- **ゼロコンフィギュレーション**: 開発環境用の自動証明書生成
+- **プロダクション対応**: バイナリ内の組み込み証明書用rust-embedサポート
+- **スキーマ検証**: 包括的な検証を備えたKDLベースのプロトコル定義
+- **コード生成**: 自動クライアント/サーバーコード生成（Rust完成、TypeScript予定）
+- **非同期ファースト**: 高性能非同期I/Oとfutures用にtokioで構築
+- **包括的テスト**: 完全なクライアント・サーバーシナリオの単一プロセス統合テスト
+- **開発者体験**: tracingによるリッチなログ、エラー処理、デバッグサポート
 
-### Technical Details
-- **Core Dependencies**: 
-  - `quinn` 0.11+ for QUIC protocol implementation
-  - `rustls` 0.23+ for TLS 1.3 encryption with ring crypto
-  - `tokio` 1.40+ for async runtime with full features
-  - `kdl` 4.6+ for schema parsing and validation
-  - `serde` 1.0+ for JSON serialization with derive features
-  - `rcgen` 0.13+ for automatic certificate generation
-  - `rust-embed` 8.5+ for embedding certificates in binaries
-  - Full dependency list with features in `Cargo.toml`
-- **Build System**: Custom build script with certificate auto-generation and code generation
-- **Testing**: Comprehensive unit tests, QUIC integration tests, and performance validation
-- **Documentation**: Full API documentation, usage examples, and QUIC protocol specifications
-- **Security**: TLS 1.3 by default, automatic certificate management, and secure defaults
+### 技術詳細
+- **コア依存関係**: 
+  - `quinn` 0.11+ - QUICプロトコル実装
+  - `rustls` 0.23+ - ring暗号によるTLS 1.3暗号化
+  - `tokio` 1.40+ - フル機能付き非同期ランタイム
+  - `kdl` 4.6+ - スキーマ解析と検証
+  - `serde` 1.0+ - derive機能付きJSONシリアライゼーション
+  - `rcgen` 0.13+ - 自動証明書生成
+  - `rust-embed` 8.5+ - バイナリへの証明書埋め込み
+  - `Cargo.toml`に完全な依存関係リストと機能
+- **ビルドシステム**: 証明書自動生成とコード生成を備えたカスタムビルドスクリプト
+- **テスト**: 包括的なユニットテスト、QUIC統合テスト、パフォーマンス検証
+- **ドキュメント**: 完全なAPIドキュメント、使用例、QUICプロトコル仕様
+- **セキュリティ**: デフォルトでTLS 1.3、自動証明書管理、セキュアなデフォルト設定
 
-### Repository Structure
+### リポジトリ構造
 ```
 unison-protocol/
 ├── .github/workflows/ci.yml    # GitHub Actions CI with Rust matrix testing
@@ -97,33 +97,33 @@ unison-protocol/
     └── PROTOCOL_SPEC_ja.md     # QUIC protocol specification
 ```
 
-### Performance Characteristics
-- **Connection Establishment**: ~20-50ms (66% faster than WebSocket)
-- **Round-trip Latency**: ~10-20ms (40-60% improvement over WebSocket)
-- **Throughput**: Up to 1.5Gbps with multiplexing support
-- **Security**: TLS 1.3 encryption by default with forward secrecy
-- **Resource Usage**: Optimized for low CPU and memory footprint
+### パフォーマンス特性
+- **接続**: 超高速接続確立
+- **レイテンシ**: 超低遅延通信
+- **スループット**: マルチストリーミングによる高スループット
+- **セキュリティ**: TLS 1.3暗号化とforward secrecy
+- **リソース**: CPU/メモリ使用量の最適化
 
-### Next Steps (Roadmap)
-- [ ] Publish to crates.io as `unison-protocol` v0.1.0
-- [ ] TypeScript/JavaScript code generation with WebTransport API support
-- [ ] Python bindings with aioquic integration
-- [ ] Go bindings with quic-go integration
-- [ ] Enhanced schema validation with custom validators
-- [ ] Performance benchmarks and optimization analysis
-- [ ] Load balancing and connection migration features
-- [ ] Streaming support for large data transfers
+### 今後の予定（ロードマップ）
+- [ ] crates.ioへ `unison-protocol` v0.1.0 として公開
+- [ ] WebTransport APIサポート付きTypeScript/JavaScriptコード生成
+- [ ] aioquic統合によるPythonバインディング
+- [ ] quic-go統合によるGoバインディング
+- [ ] カスタムバリデータによる拡張スキーマ検証
+- [ ] パフォーマンスベンチマークと最適化分析
+- [ ] ロードバランシングとコネクションマイグレーション機能
+- [ ] 大規模データ転送のためのストリーミングサポート
 
-### Migration Notes
-This is the initial independent release with QUIC transport. Previous WebSocket implementations are deprecated in favor of the superior QUIC performance and security characteristics. For new users, no migration is required - simply use the QUIC-based APIs demonstrated in the examples.
+### 移行に関する注意
+これはQUICトランスポートを主要プロトコルとした初期の独立リリースです。このフレームワークは、優れたパフォーマンスとセキュリティ特性を活用し、QUIC通信専用に設計されています。
 
-### Known Issues
-- Certificate validation in production environments requires proper CA-signed certificates
-- Some corporate firewalls may block UDP traffic required for QUIC
-- WebTransport API support varies by browser (Chrome 97+, Firefox experimental)
+### 既知の問題
+- 本番環境での証明書検証には適切なCA署名済み証明書が必要
+- 一部の企業ファイアウォールはQUICに必要なUDPトラフィックをブロックする可能性
+- WebTransport APIのサポートはブラウザにより異なる（Chrome 97+、Firefox実験的）
 
-### Community and Support
-- GitHub Issues: Report bugs and feature requests
-- GitHub Discussions: Community support and questions  
-- Documentation: Comprehensive guides in `docs/` directory
-- Examples: Production-ready server/client implementations in `examples/`
+### コミュニティとサポート
+- GitHub Issues: バグ報告と機能リクエスト
+- GitHub Discussions: コミュニティサポートと質問  
+- ドキュメント: `docs/` ディレクトリ内の包括的なガイド
+- 例: `examples/` 内の本番対応サーバー/クライアント実装
