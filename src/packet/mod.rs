@@ -28,21 +28,20 @@
 //! let restored = UnisonPacket::<StringPayload>::from_bytes(&bytes)?;
 //! ```
 
+pub mod config;
 pub mod flags;
 pub mod header;
 pub mod payload;
 pub mod serialization;
 
 // 主要な型を再エクスポート
+pub use config::{ChecksumConfig, CompressionConfig, PacketConfig};
 pub use flags::PacketFlags;
 pub use header::{PacketType, UnisonPacketHeader};
 pub use payload::{
     BytesPayload, EmptyPayload, JsonPayload, PayloadError, Payloadable, StringPayload,
 };
-pub use serialization::{
-    COMPRESSION_LEVEL, COMPRESSION_THRESHOLD, MAX_PACKET_SIZE, PacketDeserializer,
-    PacketSerializer, SerializationError,
-};
+pub use serialization::{PacketDeserializer, PacketSerializer, SerializationError};
 
 use bytes::Bytes;
 use rkyv::Deserialize;
@@ -100,10 +99,11 @@ where
             });
         }
 
-        if bytes.len() > MAX_PACKET_SIZE {
+        let default_config = PacketConfig::default();
+        if bytes.len() > default_config.max_payload_size {
             return Err(SerializationError::PacketTooLarge {
                 size: bytes.len(),
-                max_size: MAX_PACKET_SIZE,
+                max_size: default_config.max_payload_size,
             });
         }
 

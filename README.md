@@ -17,6 +17,7 @@
 
 - **型安全な通信**: KDLスキーマベースの自動コード生成により、コンパイル時の型チェックを実現
 - **超低レイテンシー**: QUIC (HTTP/3) トランスポートによる次世代の高速通信
+- **IPv6専用設計**: 最新のネットワーク標準であるIPv6のみをサポート（バグ削減とシンプルな実装）
 - **組み込みセキュリティ**: TLS 1.3完全暗号化と開発用証明書の自動生成
 - **CGP (Context-Generic Programming)**: 拡張可能なコンポーネントベースアーキテクチャ
 - **完全非同期**: Rust 2024エディション + Tokioによる最新の非同期実装
@@ -84,8 +85,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }))
     });
 
-    // QUICサーバーの起動
-    server.listen("127.0.0.1:8080").await?;
+    // QUICサーバーの起動（IPv6）
+    server.listen("[::1]:8080").await?;
     Ok(())
 }
 ```
@@ -100,8 +101,8 @@ use serde_json::json;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = ProtocolClient::new();
 
-    // サーバーへの接続
-    client.connect("127.0.0.1:8080").await?;
+    // サーバーへの接続（IPv6）
+    client.connect("[::1]:8080").await?;
 
     // メソッド呼び出し
     let response = client.call("createUser", json!({
