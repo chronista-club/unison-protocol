@@ -1,18 +1,21 @@
 use anyhow::{Context, Result};
 use futures_util::StreamExt;
-use quinn::{Endpoint, ServerConfig, ClientConfig, Connection, RecvStream, SendStream};
-use rustls::{ServerConfig as RustlsServerConfig, ClientConfig as RustlsClientConfig};
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use quinn::{ClientConfig, Connection, Endpoint, RecvStream, SendStream, ServerConfig};
 use rust_embed::RustEmbed;
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use rustls::{ClientConfig as RustlsClientConfig, ServerConfig as RustlsServerConfig};
 use std::net::SocketAddr;
-use std::sync::{Arc, atomic::{AtomicU64, AtomicBool, Ordering}};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, AtomicU64, Ordering},
+};
 use std::time::SystemTime;
-use tokio::sync::{mpsc, RwLock, Mutex};
+use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing::{error, info, warn};
 
 use super::{
-    server::ProtocolServer, ProtocolMessage, ProtocolServerTrait,
-    NetworkError, SystemStream, StreamHandle, MessageType,
+    MessageType, NetworkError, ProtocolMessage, ProtocolServerTrait, StreamHandle, SystemStream,
+    server::ProtocolServer,
 };
 
 /// Default certificate file paths for assets/certs directory
@@ -57,24 +60,25 @@ impl QuicClient {
             .dangerous()
             .with_custom_certificate_verifier(Arc::new(SkipServerVerification))
             .with_no_client_auth();
-        
+
         let crypto = quinn::crypto::rustls::QuicClientConfig::try_from(client_crypto_config)?;
         let mut client_config = ClientConfig::new(Arc::new(crypto));
 
         // Configure QUIC transport parameters optimized for real-time communication
         let mut transport_config = quinn::TransportConfig::default();
-        
+
         // Optimize for low latency
-        transport_config.max_idle_timeout(Some(std::time::Duration::from_secs(60).try_into().unwrap()));
+        transport_config
+            .max_idle_timeout(Some(std::time::Duration::from_secs(60).try_into().unwrap()));
         transport_config.keep_alive_interval(Some(std::time::Duration::from_secs(10)));
-        
+
         // Enable 0-RTT for faster reconnection
         transport_config.max_concurrent_uni_streams(0u32.into()); // Unlimited unidirectional streams
         transport_config.max_concurrent_bidi_streams(1000u32.into()); // Support many bidirectional streams
-        
+
         // Optimize congestion control for real-time data
         transport_config.initial_rtt(std::time::Duration::from_millis(100));
-        
+
         client_config.transport_config(Arc::new(transport_config));
 
         Ok(client_config)
@@ -84,18 +88,94 @@ impl QuicClient {
 }
 
 impl QuicClient {
+    /// IPv6専用でサーバーアドレスを解析
+    fn parse_server_address(addr: &str) -> Result<SocketAddr> {
+        // まず直接パースを試みる（IPv6のみ受け入れる）
+        if let Ok(socket_addr) = addr.parse::<SocketAddr>() {
+            match socket_addr {
+                SocketAddr::V6(_) => return Ok(socket_addr),
+                SocketAddr::V4(_) => {
+                    return Err(anyhow::anyhow!(
+                        "IPv4アドレスはサポートされていません: {}",
+                        addr
+                    ));
+                }
+            }
+        }
+
+        // デフォルトポート
+        const DEFAULT_PORT: u16 = 8080;
+
+        // IPv6アドレスとして解析を試みる（ポートなし）
+        if addr.contains(':') && !addr.contains('[') && !addr.contains('.') {
+            // IPv6アドレスにデフォルトポートを追加
+            let addr_with_brackets = format!("[{}]:{}", addr, DEFAULT_PORT);
+            if let Ok(socket_addr) = addr_with_brackets.parse::<SocketAddr>() {
+                match socket_addr {
+                    SocketAddr::V6(_) => return Ok(socket_addr),
+                    _ => {}
+                }
+            }
+        }
+
+        // ポート番号のみの場合はIPv6ループバックを使用
+        if let Ok(port) = addr.parse::<u16>() {
+            return Ok(SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], port)));
+        }
+
+        // "localhost:port"形式の場合はIPv6ループバックを使用
+        if addr.starts_with("localhost:") {
+            if let Ok(port) = addr[10..].parse::<u16>() {
+                return Ok(SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], port)));
+            }
+        }
+
+        // [IPv6]:port 形式を解析
+        if addr.starts_with('[') {
+            if let Some(end) = addr.find(']') {
+                let ipv6_str = &addr[1..end];
+                let port_str = if addr.len() > end + 1 && &addr[end + 1..end + 2] == ":" {
+                    &addr[end + 2..]
+                } else {
+                    return Err(anyhow::anyhow!("無効なIPv6アドレス形式: {}", addr));
+                };
+
+                let ipv6 = ipv6_str
+                    .parse::<std::net::Ipv6Addr>()
+                    .map_err(|_| anyhow::anyhow!("無効なIPv6アドレス: {}", ipv6_str))?;
+                let port = if port_str.is_empty() {
+                    DEFAULT_PORT
+                } else {
+                    port_str
+                        .parse::<u16>()
+                        .map_err(|_| anyhow::anyhow!("無効なポート番号: {}", port_str))?
+                };
+
+                return Ok(SocketAddr::from((ipv6, port)));
+            }
+        }
+
+        // その他の場合はエラー
+        Err(anyhow::anyhow!("無効なIPv6アドレス形式: {}", addr))
+    }
+
     pub async fn send(&self, message: ProtocolMessage) -> Result<()> {
         let connection_guard = self.connection.read().await;
         if let Some(connection) = connection_guard.as_ref() {
             // 双方向ストリームを開く
-            let (mut send_stream, mut recv_stream) = connection.open_bi().await
+            let (mut send_stream, mut recv_stream) = connection
+                .open_bi()
+                .await
                 .context("Failed to open bidirectional QUIC stream")?;
 
             // リクエストを送信
             let json = serde_json::to_vec(&message)?;
-            send_stream.write_all(&json).await
+            send_stream
+                .write_all(&json)
+                .await
                 .context("Failed to write to QUIC stream")?;
-            send_stream.finish()
+            send_stream
+                .finish()
                 .context("Failed to finish QUIC send stream")?;
 
             // レスポンスを受信してチャンネルに送る
@@ -121,24 +201,28 @@ impl QuicClient {
             Err(anyhow::anyhow!("QUIC not connected"))
         }
     }
-    
+
     pub async fn receive(&self) -> Result<ProtocolMessage> {
         let mut rx_guard = self.rx.write().await;
         if let Some(rx) = rx_guard.as_mut() {
-            rx.recv().await
+            rx.recv()
+                .await
                 .context("Failed to receive message from channel")
         } else {
             Err(anyhow::anyhow!("Receiver not available"))
         }
     }
-    
+
     pub async fn connect(&self, url: &str) -> Result<()> {
-        // Parse URL to extract host and port
-        let addr: SocketAddr = url.parse()
-            .context("Failed to parse server address")?;
-        
+        // Parse URL (IPv6 only)
+        let addr = Self::parse_server_address(url)?;
+
         let client_config = Self::configure_client().await?;
-        let mut endpoint = Endpoint::client("0.0.0.0:0".parse().unwrap())?;
+
+        // IPv6専用でバインド
+        let bind_addr: SocketAddr = "[::]:0".parse().unwrap();
+
+        let mut endpoint = Endpoint::client(bind_addr)?;
         endpoint.set_default_client_config(client_config);
 
         let connection = endpoint
@@ -146,13 +230,13 @@ impl QuicClient {
             .await
             .context("Failed to establish QUIC connection")?;
 
-        info!("Connected to QUIC server at {}", addr);
+        info!("Connected to QUIC server at {} (IPv6)", addr);
 
         *self.connection.write().await = Some(connection);
 
         Ok(())
     }
-    
+
     pub async fn disconnect(&self) -> Result<()> {
         // すべてのレスポンス受信タスクをキャンセル
         let mut tasks = self.response_tasks.lock().await;
@@ -167,7 +251,7 @@ impl QuicClient {
         }
         Ok(())
     }
-    
+
     pub async fn is_connected(&self) -> bool {
         let connection_guard = self.connection.read().await;
         if let Some(connection) = connection_guard.as_ref() {
@@ -193,41 +277,45 @@ impl QuicServer {
     }
 
     /// QUIC/TLS 1.3用の自己署名証明書を生成（本番環境使用に最適化）
-    pub fn generate_self_signed_cert() -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+    pub fn generate_self_signed_cert()
+    -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         let subject_alt_names = vec![
             "localhost".to_string(),
             "*.unison.svc.cluster.local".to_string(),
             "dev.chronista.club".to_string(),
         ];
-        
+
         let cert_key = rcgen::generate_simple_self_signed(subject_alt_names)?;
         let cert_der_bytes = cert_key.cert.der().to_vec();
         let private_key_der_bytes = cert_key.key_pair.serialize_der();
-        
+
         Ok((
             vec![CertificateDer::from(cert_der_bytes)],
             PrivateKeyDer::try_from(private_key_der_bytes).unwrap(),
         ))
     }
-    
+
     /// 外部ファイルから証明書を読み込み（本番環境デプロイ用）
-    pub fn load_cert_from_files(cert_path: &str, key_path: &str) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+    pub fn load_cert_from_files(
+        cert_path: &str,
+        key_path: &str,
+    ) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         let cert_pem = std::fs::read_to_string(cert_path)?;
         let key_der = std::fs::read(key_path)?;
-        
+
         let cert_chain = rustls_pemfile::certs(&mut cert_pem.as_bytes())
             .collect::<Result<Vec<_>, _>>()
             .context("Failed to parse certificate")?;
         let certs = cert_chain.into_iter().map(CertificateDer::from).collect();
-        
+
         // Convert to owned data for static lifetime
         let key_der_owned = key_der.clone();
         let private_key = PrivateKeyDer::try_from(key_der_owned.as_ref())
             .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
-        
+
         Ok((certs, private_key.clone_key()))
     }
-    
+
     /// 埋め込みアセットから証明書を読み込み（rust-embed）
     pub fn load_cert_embedded() -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         // Try to load embedded certificate files
@@ -235,40 +323,41 @@ impl QuicServer {
             .ok_or_else(|| anyhow::anyhow!("Embedded cert.pem not found"))?;
         let key_data = EmbeddedCerts::get("private_key.der")
             .ok_or_else(|| anyhow::anyhow!("Embedded private_key.der not found"))?;
-        
+
         // Parse certificate
         let cert_pem = std::str::from_utf8(&cert_data.data)?;
         let cert_chain = rustls_pemfile::certs(&mut cert_pem.as_bytes())
             .collect::<Result<Vec<_>, _>>()
             .context("Failed to parse embedded certificate")?;
         let certs = cert_chain.into_iter().map(CertificateDer::from).collect();
-        
+
         // Load private key (already in DER format) - clone to own the data
         let key_data_owned = key_data.data.to_vec();
         let private_key = PrivateKeyDer::try_from(key_data_owned.as_ref())
             .map_err(|e| anyhow::anyhow!("Failed to parse embedded private key: {}", e))?;
-        
+
         info!("🔐 Loaded embedded certificate from rust-embed");
         Ok((certs, private_key.clone_key()))
     }
-    
+
     /// Automatically load certificate with fallback priority:
     /// 1. External files (assets/certs/)
     /// 2. Embedded certificates (rust-embed)
     /// 3. Generated self-signed certificate
     pub fn load_cert_auto() -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         // Priority 1: External files
-        if std::path::Path::new(DEFAULT_CERT_PATH).exists() && 
-           std::path::Path::new(DEFAULT_KEY_PATH).exists() {
+        if std::path::Path::new(DEFAULT_CERT_PATH).exists()
+            && std::path::Path::new(DEFAULT_KEY_PATH).exists()
+        {
             info!("🔐 Loading certificate from external files");
             return Self::load_cert_from_files(DEFAULT_CERT_PATH, DEFAULT_KEY_PATH);
         }
-        
+
         // Priority 2: Embedded certificates (rust-embed使用)
         if let Ok(result) = Self::load_cert_embedded() {
             return Ok(result);
         }
-        
+
         // Priority 3: Generate self-signed certificate
         info!("🔐 Generating self-signed certificate (no certificate files found)");
         Self::generate_self_signed_cert()
@@ -277,58 +366,125 @@ impl QuicServer {
     /// Configure server with TLS (using auto certificate detection)
     pub async fn configure_server() -> Result<ServerConfig> {
         let (certs, private_key) = Self::load_cert_auto()?;
-        
+
         let rustls_server_config = RustlsServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(certs, private_key)
             .map_err(|e| anyhow::anyhow!("Failed to configure TLS: {}", e))?;
-            
+
         let crypto = quinn::crypto::rustls::QuicServerConfig::try_from(rustls_server_config)?;
         let mut server_config = ServerConfig::with_crypto(Arc::new(crypto));
-        
+
         // Configure QUIC transport parameters optimized for real-time communication
         let mut transport_config = quinn::TransportConfig::default();
-        
+
         // Optimize for low latency and high throughput
-        transport_config.max_idle_timeout(Some(std::time::Duration::from_secs(60).try_into().unwrap()));
+        transport_config
+            .max_idle_timeout(Some(std::time::Duration::from_secs(60).try_into().unwrap()));
         transport_config.keep_alive_interval(Some(std::time::Duration::from_secs(10)));
-        
+
         // Support many concurrent streams for multiplexed communication
         transport_config.max_concurrent_uni_streams(0u32.into()); // Unlimited unidirectional streams
         transport_config.max_concurrent_bidi_streams(1000u32.into()); // Support many bidirectional streams
-        
+
         // Optimize for protocol-level communication patterns
         transport_config.initial_rtt(std::time::Duration::from_millis(100));
         // Max UDP payload is handled automatically by QUIC
-        
+
         server_config.transport_config(Arc::new(transport_config));
-        
+
         Ok(server_config)
     }
 
     pub async fn bind(&mut self, addr: &str) -> Result<()> {
-        let socket_addr: SocketAddr = addr.parse()
-            .context("Failed to parse bind address")?;
-        
+        // IPv6を優先的に使用し、IPv4もサポート
+        let socket_addr = Self::parse_socket_addr(addr)?;
+
         let server_config = Self::configure_server().await?;
         let endpoint = Endpoint::server(server_config, socket_addr)?;
-        
-        info!("QUIC server bound to {}", socket_addr);
+
+        info!("QUIC server bound to {} (IPv6)", socket_addr);
         self.endpoint = Some(endpoint);
         Ok(())
     }
-    
+
+    /// IPv6専用でソケットアドレスを解析
+    fn parse_socket_addr(addr: &str) -> Result<SocketAddr> {
+        // まず直接パースを試みる（IPv6のみ受け入れる）
+        if let Ok(socket_addr) = addr.parse::<SocketAddr>() {
+            match socket_addr {
+                SocketAddr::V6(_) => return Ok(socket_addr),
+                SocketAddr::V4(_) => {
+                    return Err(anyhow::anyhow!(
+                        "IPv4アドレスはサポートされていません: {}",
+                        addr
+                    ));
+                }
+            }
+        }
+
+        // ポート番号が含まれていない場合のデフォルトポート
+        const DEFAULT_PORT: u16 = 8080;
+
+        // IPv6アドレスとして解析を試みる
+        if addr.contains(':') && !addr.contains('[') {
+            // IPv6アドレスにポートを追加
+            let addr_with_brackets = format!("[{}]:{}", addr, DEFAULT_PORT);
+            if let Ok(socket_addr) = addr_with_brackets.parse::<SocketAddr>() {
+                match socket_addr {
+                    SocketAddr::V6(_) => return Ok(socket_addr),
+                    _ => {}
+                }
+            }
+        }
+
+        // ポート番号のみの場合はIPv6ループバックを使用
+        if let Ok(port) = addr.parse::<u16>() {
+            return Ok(SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], port)));
+        }
+
+        // [IPv6]:port 形式を解析
+        if addr.starts_with('[') {
+            if let Some(end) = addr.find(']') {
+                let ipv6_str = &addr[1..end];
+                let port_str = if addr.len() > end + 1 && &addr[end + 1..end + 2] == ":" {
+                    &addr[end + 2..]
+                } else {
+                    return Err(anyhow::anyhow!("無効なIPv6アドレス形式: {}", addr));
+                };
+
+                let ipv6 = ipv6_str
+                    .parse::<std::net::Ipv6Addr>()
+                    .map_err(|_| anyhow::anyhow!("無効なIPv6アドレス: {}", ipv6_str))?;
+                let port = if port_str.is_empty() {
+                    DEFAULT_PORT
+                } else {
+                    port_str
+                        .parse::<u16>()
+                        .map_err(|_| anyhow::anyhow!("無効なポート番号: {}", port_str))?
+                };
+
+                return Ok(SocketAddr::from((ipv6, port)));
+            }
+        }
+
+        // その他の場合はエラー
+        Err(anyhow::anyhow!("無効なIPv6アドレス形式: {}", addr))
+    }
+
     pub async fn start(&self) -> Result<()> {
-        let endpoint = self.endpoint.as_ref()
+        let endpoint = self
+            .endpoint
+            .as_ref()
             .context("Server not bound to an address")?;
-        
+
         info!("QUIC server listening for connections");
-        
+
         while let Some(connecting) = endpoint.accept().await {
             let connection = connecting.await?;
             let remote_addr = connection.remote_address();
             info!("New QUIC connection from: {}", remote_addr);
-            
+
             let server = Arc::clone(&self.server);
             tokio::spawn(async move {
                 if let Err(e) = handle_connection(connection, server).await {
@@ -336,15 +492,12 @@ impl QuicServer {
                 }
             });
         }
-        
+
         Ok(())
     }
 }
 
-async fn handle_connection(
-    connection: Connection,
-    server: Arc<ProtocolServer>,
-) -> Result<()> {
+async fn handle_connection(connection: Connection, server: Arc<ProtocolServer>) -> Result<()> {
     loop {
         let connection_clone = connection.clone();
         match connection.accept_bi().await {
@@ -363,7 +516,7 @@ async fn handle_connection(
                                             let response = server
                                                 .handle_call(&request.method, request.payload)
                                                 .await;
-                                            
+
                                             let response_msg = match response {
                                                 Ok(payload) => ProtocolMessage {
                                                     id: request.id,
@@ -382,21 +535,28 @@ async fn handle_connection(
                                             };
 
                                             // 双方向ストリームの送信側を使ってレスポンスを送信
-                                            let response_data = serde_json::to_vec(&response_msg).unwrap();
-                                            if let Err(e) = send_stream.write_all(&response_data).await {
+                                            let response_data =
+                                                serde_json::to_vec(&response_msg).unwrap();
+                                            if let Err(e) =
+                                                send_stream.write_all(&response_data).await
+                                            {
                                                 error!("Failed to send response: {}", e);
                                             }
                                             let _ = send_stream.finish();
                                         }
                                         super::MessageType::Stream => {
-                                            match server.handle_stream(&request.method, request.payload).await {
+                                            match server
+                                                .handle_stream(&request.method, request.payload)
+                                                .await
+                                            {
                                                 Ok(mut stream) => {
                                                     while let Some(item) = stream.next().await {
                                                         let msg = match item {
                                                             Ok(payload) => ProtocolMessage {
                                                                 id: request.id,
                                                                 method: request.method.clone(),
-                                                                msg_type: super::MessageType::StreamData,
+                                                                msg_type:
+                                                                    super::MessageType::StreamData,
                                                                 payload,
                                                             },
                                                             Err(e) => ProtocolMessage {
@@ -408,13 +568,19 @@ async fn handle_connection(
                                                                 }),
                                                             },
                                                         };
-                                                        
-                                                        if let Err(e) = send_response(connection.clone(), msg).await {
-                                                            error!("Failed to send stream data: {}", e);
+
+                                                        if let Err(e) =
+                                                            send_response(connection.clone(), msg)
+                                                                .await
+                                                        {
+                                                            error!(
+                                                                "Failed to send stream data: {}",
+                                                                e
+                                                            );
                                                             break;
                                                         }
                                                     }
-                                                    
+
                                                     // Send stream end message
                                                     let end_msg = ProtocolMessage {
                                                         id: request.id,
@@ -422,8 +588,10 @@ async fn handle_connection(
                                                         msg_type: super::MessageType::StreamEnd,
                                                         payload: serde_json::json!({}),
                                                     };
-                                                    
-                                                    if let Err(e) = send_response(connection, end_msg).await {
+
+                                                    if let Err(e) =
+                                                        send_response(connection, end_msg).await
+                                                    {
                                                         error!("Failed to send stream end: {}", e);
                                                     }
                                                 }
@@ -436,15 +604,23 @@ async fn handle_connection(
                                                             "message": e.to_string(),
                                                         }),
                                                     };
-                                                    
-                                                    if let Err(e) = send_response(connection, error_msg).await {
-                                                        error!("Failed to send error response: {}", e);
+
+                                                    if let Err(e) =
+                                                        send_response(connection, error_msg).await
+                                                    {
+                                                        error!(
+                                                            "Failed to send error response: {}",
+                                                            e
+                                                        );
                                                     }
                                                 }
                                             }
                                         }
                                         _ => {
-                                            warn!("Unexpected message type: {:?}", request.msg_type);
+                                            warn!(
+                                                "Unexpected message type: {:?}",
+                                                request.msg_type
+                                            );
                                         }
                                     }
                                 }
@@ -469,7 +645,7 @@ async fn handle_connection(
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -497,7 +673,7 @@ impl rustls::client::danger::ServerCertVerifier for SkipServerVerification {
     ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
         Ok(rustls::client::danger::ServerCertVerified::assertion())
     }
-    
+
     fn verify_tls12_signature(
         &self,
         _message: &[u8],
@@ -506,7 +682,7 @@ impl rustls::client::danger::ServerCertVerifier for SkipServerVerification {
     ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
         Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
     }
-    
+
     fn verify_tls13_signature(
         &self,
         _message: &[u8],
@@ -515,7 +691,7 @@ impl rustls::client::danger::ServerCertVerifier for SkipServerVerification {
     ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
         Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
     }
-    
+
     fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
         use rustls::SignatureScheme;
         vec![
@@ -554,19 +730,21 @@ impl UnisonStream {
         stream_id: Option<u64>,
     ) -> Result<Self> {
         static STREAM_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
-        
+
         let id = stream_id.unwrap_or_else(|| STREAM_ID_COUNTER.fetch_add(1, Ordering::SeqCst));
-        
+
         // Open bidirectional stream
-        let (send_stream, recv_stream) = connection.open_bi().await
+        let (send_stream, recv_stream) = connection
+            .open_bi()
+            .await
             .context("Failed to open bidirectional stream")?;
-        
+
         let handle = StreamHandle {
             stream_id: id,
             method: method.clone(),
             created_at: SystemTime::now(),
         };
-        
+
         Ok(Self {
             stream_id: id,
             method,
@@ -577,7 +755,7 @@ impl UnisonStream {
             handle,
         })
     }
-    
+
     /// 既存のストリームから作成（サーバー側）
     pub fn from_streams(
         stream_id: u64,
@@ -591,7 +769,7 @@ impl UnisonStream {
             method: method.clone(),
             created_at: SystemTime::now(),
         };
-        
+
         Self {
             stream_id,
             method,
@@ -609,89 +787,103 @@ impl SystemStream for UnisonStream {
         if !self.is_active() {
             return Err(NetworkError::Connection("Stream is not active".to_string()));
         }
-        
+
         let message = ProtocolMessage {
             id: self.stream_id,
             method: self.method.clone(),
             msg_type: MessageType::StreamSend,
             payload: data,
         };
-        
-        let json_data = serde_json::to_vec(&message)
-            .map_err(|e| NetworkError::Serialization(e))?;
-        
+
+        let json_data = serde_json::to_vec(&message).map_err(|e| NetworkError::Serialization(e))?;
+
         let mut send_guard = self.send_stream.lock().await;
         if let Some(send_stream) = send_guard.as_mut() {
-            send_stream.write_all(&json_data).await
+            send_stream
+                .write_all(&json_data)
+                .await
                 .map_err(|e| NetworkError::Quic(format!("Failed to send data: {}", e)))?;
             Ok(())
         } else {
-            Err(NetworkError::Connection("Send stream is closed".to_string()))
+            Err(NetworkError::Connection(
+                "Send stream is closed".to_string(),
+            ))
         }
     }
-    
+
     async fn receive(&mut self) -> Result<serde_json::Value, NetworkError> {
         if !self.is_active() {
             return Err(NetworkError::Connection("Stream is not active".to_string()));
         }
-        
+
         let mut recv_guard = self.recv_stream.lock().await;
         if let Some(recv_stream) = recv_guard.as_mut() {
-            let data = recv_stream.read_to_end(MAX_MESSAGE_SIZE).await // 8MB limit
+            let data = recv_stream
+                .read_to_end(MAX_MESSAGE_SIZE)
+                .await // 8MB limit
                 .map_err(|e| NetworkError::Quic(format!("Failed to receive data: {}", e)))?;
-            
+
             if data.is_empty() {
                 self.is_active.store(false, Ordering::SeqCst);
                 return Err(NetworkError::Connection("Stream ended".to_string()));
             }
-            
-            let message: ProtocolMessage = serde_json::from_slice(&data)
-                .map_err(|e| NetworkError::Serialization(e))?;
-            
+
+            let message: ProtocolMessage =
+                serde_json::from_slice(&data).map_err(|e| NetworkError::Serialization(e))?;
+
             match message.msg_type {
-                MessageType::StreamReceive | MessageType::StreamData => {
-                    Ok(message.payload)
-                },
+                MessageType::StreamReceive | MessageType::StreamData => Ok(message.payload),
                 MessageType::StreamEnd => {
                     self.is_active.store(false, Ordering::SeqCst);
                     Err(NetworkError::Connection("Stream ended by peer".to_string()))
-                },
+                }
                 MessageType::StreamError => {
                     self.is_active.store(false, Ordering::SeqCst);
-                    Err(NetworkError::Protocol(format!("Stream error: {:?}", message.payload)))
-                },
-                _ => {
-                    Err(NetworkError::Protocol(format!("Unexpected message type: {:?}", message.msg_type)))
+                    Err(NetworkError::Protocol(format!(
+                        "Stream error: {:?}",
+                        message.payload
+                    )))
                 }
+                _ => Err(NetworkError::Protocol(format!(
+                    "Unexpected message type: {:?}",
+                    message.msg_type
+                ))),
             }
         } else {
-            Err(NetworkError::Connection("Receive stream is closed".to_string()))
+            Err(NetworkError::Connection(
+                "Receive stream is closed".to_string(),
+            ))
         }
     }
-    
+
     fn is_active(&self) -> bool {
         self.is_active.load(Ordering::SeqCst)
     }
-    
+
     async fn close(&mut self) -> Result<(), NetworkError> {
         self.is_active.store(false, Ordering::SeqCst);
-        
+
         // Close send stream
         if let Some(mut send_stream) = self.send_stream.lock().await.take() {
-            send_stream.finish()
+            send_stream
+                .finish()
                 .map_err(|e| NetworkError::Quic(format!("Failed to close send stream: {}", e)))?;
         }
-        
+
         // Close receive stream
         if let Some(mut recv_stream) = self.recv_stream.lock().await.take() {
-            recv_stream.stop(quinn::VarInt::from_u32(0))
-                .map_err(|e| NetworkError::Quic(format!("Failed to close receive stream: {}", e)))?;
+            recv_stream.stop(quinn::VarInt::from_u32(0)).map_err(|e| {
+                NetworkError::Quic(format!("Failed to close receive stream: {}", e))
+            })?;
         }
-        
-        info!("🔒 SystemStream {} closed for method '{}'", self.stream_id, self.method);
+
+        info!(
+            "🔒 SystemStream {} closed for method '{}'",
+            self.stream_id, self.method
+        );
         Ok(())
     }
-    
+
     fn get_handle(&self) -> StreamHandle {
         self.handle.clone()
     }

@@ -3,8 +3,8 @@
 //! このモジュールは、すべてのUnison Protocol通信の基礎となる
 //! 基本的な型と構造体を提供します。
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Unisonプロトコルの標準メッセージフォーマット
@@ -12,7 +12,7 @@ use uuid::Uuid;
 pub struct UnisonMessage {
     /// 一意のメッセージ識別子
     pub id: String,
-    /// RPCメソッド名
+    /// メソッド名
     pub method: String,
     /// JSON形式のメソッドパラメータ
     pub payload: serde_json::Value,
@@ -121,9 +121,13 @@ impl UnisonMessage {
             version: default_version(),
         }
     }
-    
+
     /// Create a message with a specific ID
-    pub fn with_id(id: impl Into<String>, method: impl Into<String>, payload: serde_json::Value) -> Self {
+    pub fn with_id(
+        id: impl Into<String>,
+        method: impl Into<String>,
+        payload: serde_json::Value,
+    ) -> Self {
         Self {
             id: id.into(),
             method: method.into(),
@@ -146,7 +150,7 @@ impl UnisonResponse {
             version: default_version(),
         }
     }
-    
+
     /// Create an error response
     pub fn error(id: impl Into<String>, error: impl Into<String>) -> Self {
         Self {
@@ -158,7 +162,7 @@ impl UnisonResponse {
             version: default_version(),
         }
     }
-    
+
     /// Create an empty success response
     pub fn empty_success(id: impl Into<String>) -> Self {
         Self {
@@ -182,12 +186,12 @@ impl UnisonError {
             timestamp: Utc::now(),
         }
     }
-    
+
     /// Create an error with additional details
     pub fn with_details(
-        code: impl Into<String>, 
+        code: impl Into<String>,
         message: impl Into<String>,
-        details: serde_json::Value
+        details: serde_json::Value,
     ) -> Self {
         Self {
             code: code.into(),
@@ -205,7 +209,7 @@ fn default_version() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_unison_message_creation() {
         let msg = UnisonMessage::new("test_method", serde_json::json!({"key": "value"}));
@@ -213,7 +217,7 @@ mod tests {
         assert_eq!(msg.version, "1.0.0");
         assert!(!msg.id.is_empty());
     }
-    
+
     #[test]
     fn test_unison_response_success() {
         let resp = UnisonResponse::success("123", serde_json::json!({"result": "ok"}));
@@ -222,7 +226,7 @@ mod tests {
         assert!(resp.payload.is_some());
         assert!(resp.error.is_none());
     }
-    
+
     #[test]
     fn test_unison_response_error() {
         let resp = UnisonResponse::error("123", "Something went wrong");
@@ -231,13 +235,13 @@ mod tests {
         assert!(resp.payload.is_none());
         assert_eq!(resp.error.as_ref().unwrap(), "Something went wrong");
     }
-    
+
     #[test]
     fn test_serialization_roundtrip() {
         let msg = UnisonMessage::new("ping", serde_json::json!({"message": "hello"}));
         let json = serde_json::to_string(&msg).unwrap();
         let deserialized: UnisonMessage = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(msg.id, deserialized.id);
         assert_eq!(msg.method, deserialized.method);
         assert_eq!(msg.payload, deserialized.payload);

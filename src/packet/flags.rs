@@ -40,7 +40,10 @@ impl PacketFlags {
     /// メタデータ付き
     pub const METADATA: u16 = 0b0000_0010_0000_0000; // bit 9
 
-    // bit 10-15: 将来の拡張用に予約
+    /// チェックサム付き
+    pub const CHECKSUM: u16 = 0b0000_0100_0000_0000; // bit 10
+
+    // bit 11-15: 将来の拡張用に予約
 
     /// 新しい空のフラグセットを作成
     pub fn new() -> Self {
@@ -141,6 +144,11 @@ impl PacketFlags {
     pub fn has_metadata(&self) -> bool {
         self.contains(Self::METADATA)
     }
+
+    /// チェックサム付きかチェック
+    pub fn has_checksum(&self) -> bool {
+        self.contains(Self::CHECKSUM)
+    }
 }
 
 impl fmt::Display for PacketFlags {
@@ -176,6 +184,9 @@ impl fmt::Display for PacketFlags {
         }
         if self.has_metadata() {
             flags.push("METADATA");
+        }
+        if self.has_checksum() {
+            flags.push("CHECKSUM");
         }
 
         if flags.is_empty() {
