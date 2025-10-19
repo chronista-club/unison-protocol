@@ -348,7 +348,15 @@ cargo run --example unison_ping_server
 cargo test
 ```
 
-> **macOS開発者向けの注意**: macOSの標準リンカーには制限があるため、テストを実行するには`lld`リンカーが必要です。`brew install lld`でインストールしてください。プロジェクトには`.cargo/config.toml`で`ld64.lld`を使用する設定が含まれています。
+> **macOS開発者向けの注意**: macOSの標準リンカーには制限があるため、テストを実行するには`lld`リンカーが必要です。`brew install lld`でインストール後、プロジェクトルートに`.cargo/config.toml`ファイルを作成して以下の設定を追加してください：
+> 
+> ```toml
+> [target.aarch64-apple-darwin]
+> linker = "clang"
+> rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/ld64.lld"]
+> ```
+> 
+> **注**: `.cargo/config.toml`はローカル開発環境専用の設定ファイルです（`.gitignore`に含まれています）。CI環境では不要です。
 
 ### コード生成
 

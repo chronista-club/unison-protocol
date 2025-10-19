@@ -40,13 +40,20 @@ Unison Protocol への貢献に興味を持っていただきありがとうご�
    git remote add upstream https://github.com/chronista-club/unison-protocol.git
    ```
 
-4. **(macOS のみ)** LLD リンカーをインストール：
+4. **(macOS のみ)** LLD リンカーをインストールして設定：
    ```bash
    brew install lld
    ```
    
+   インストール後、プロジェクトルートに `.cargo/config.toml` ファイルを作成して以下の設定を追加：
+   ```toml
+   [target.aarch64-apple-darwin]
+   linker = "clang"
+   rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/ld64.lld"]
+   ```
+   
    > **注意**: macOS では標準リンカーに制限があるため、テストを実行するには `lld` リンカーが必要です。
-   > このプロジェクトには `.cargo/config.toml` で `ld64.lld` を使用する設定が含まれています。
+   > `.cargo/config.toml` はローカル開発環境専用の設定ファイルです（`.gitignore` に含まれています）。CI 環境では不要です。
 
 5. プロジェクトをビルド：
    ```bash
