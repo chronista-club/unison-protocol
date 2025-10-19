@@ -158,22 +158,14 @@ mod tests {
     fn test_parse_schema() {
         let schema = r#"
 protocol "test" version="1.0.0" {
-    namespace "test.protocol"
-    description "ユニットテスト用のテストプロトコル"
-
-    message "TestMessage" {
-        description "テストメッセージ構造"
-        field "id" type="string" required=#true description="一意識別子"
-        field "value" type="number" required=#false description="オプションの数値"
-    }
-
     service "TestService" {
-        description "ユニットテスト用のテストサービス"
-
         method "test_method" {
-            description "テストメソッド"
-            request "TestMessage"
-            response "TestMessage"
+            request {
+                field "id" type="string"
+            }
+            response {
+                field "id" type="string"
+            }
         }
     }
 }
