@@ -70,7 +70,7 @@ indexmap = "2.6"
 scc = "3"
 tempfile = "3.13"
 kdl = "6.3.4"
-knuffel = "3.2.0"
+knuffel = { git = "https://github.com/chronista-club/knuffel.git" }
 
 [build-dependencies]
 kdl = "6.3.4"

@@ -40,12 +40,20 @@ Unison Protocol への貢献に興味を持っていただきありがとうご�
    git remote add upstream https://github.com/chronista-club/unison-protocol.git
    ```
 
-4. プロジェクトをビルド：
+4. **(macOS のみ)** LLD リンカーをインストール：
+   ```bash
+   brew install lld
+   ```
+   
+   > **注意**: macOS では標準リンカーに制限があるため、テストを実行するには `lld` リンカーが必要です。
+   > このプロジェクトには `.cargo/config.toml` で `ld64.lld` を使用する設定が含まれています。
+
+5. プロジェクトをビルド：
    ```bash
    cargo build
    ```
 
-5. テストを実行して動作確認：
+6. テストを実行して動作確認：
    ```bash
    cargo test
    ```
