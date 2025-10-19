@@ -138,6 +138,7 @@ where
     pub fn payload(&self) -> Result<T, SerializationError>
     where
         T::Archived: Deserialize<T, rkyv::Infallible>,
+        for<'a> T::Archived: rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'a>>,
     {
         let (header, payload_bytes) = PacketDeserializer::deserialize_header(&self.raw_data)?;
         PacketDeserializer::deserialize_payload(&header, &payload_bytes)
@@ -147,9 +148,17 @@ where
     pub fn payload_zero_copy<'a>(
         &'a self,
         buffer: &'a mut Vec<u8>,
-    ) -> Result<&'a T::Archived, SerializationError> {
-        let (header, payload_bytes) = PacketDeserializer::deserialize_header(&self.raw_data)?;
-        PacketDeserializer::deserialize_payload_zero_copy::<T>(&header, &payload_bytes, buffer)
+    ) -> Result<&'a T::Archived, SerializationError>
+    where
+        for<'b> T::Archived: rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'b>>,
+    {
+        let (header, _) = PacketDeserializer::deserialize_header(&self.raw_data)?;
+
+        // ヘッダーサイズをスキップしてペイロード部分を取得
+        let payload_start = 48; // ヘッダーサイズ
+        let payload_bytes = &self.raw_data[payload_start..];
+
+        PacketDeserializer::deserialize_payload_zero_copy::<T>(&header, payload_bytes, buffer)
     }
 }
 

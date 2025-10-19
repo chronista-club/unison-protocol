@@ -179,6 +179,7 @@ impl PacketDeserializer {
     ) -> Result<T, SerializationError>
     where
         T::Archived: Deserialize<T, rkyv::Infallible>,
+        for<'a> T::Archived: rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'a>>,
     {
         // サイズチェック
         let expected_size = header.actual_payload_size() as usize;
@@ -213,7 +214,10 @@ impl PacketDeserializer {
         header: &UnisonPacketHeader,
         payload_bytes: &'a [u8],
         buffer: &'a mut Vec<u8>,
-    ) -> Result<&'a T::Archived, SerializationError> {
+    ) -> Result<&'a T::Archived, SerializationError>
+    where
+        for<'b> T::Archived: rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'b>>,
+    {
         // チェックサム検証（必要な場合）
         if header.has_checksum() {
             let calculated = PacketSerializer::calculate_checksum(payload_bytes);
@@ -261,6 +265,7 @@ impl PacketDeserializer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packet::PacketType;
     use crate::packet::payload::{BytesPayload, StringPayload};
 
     #[test]
