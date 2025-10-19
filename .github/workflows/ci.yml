@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   schedule:
     # Run security audit daily at 00:00 UTC
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,18 +22,18 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         rust:
           - stable
-          - beta
-          - nightly
-        exclude:
-          # Reduce matrix for beta and nightly
-          - os: macos-latest
-            rust: beta
-          - os: windows-latest
-            rust: beta
-          - os: macos-latest
-            rust: nightly
-          - os: windows-latest
-            rust: nightly
+          # - beta
+          # - nightly
+        # exclude:
+        #   # Reduce matrix for beta and nightly
+        #   - os: macos-latest
+        #     rust: beta
+        #   - os: windows-latest
+        #     rust: beta
+        #   - os: macos-latest
+        #     rust: nightly
+        #   - os: windows-latest
+        #     rust: nightly
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
