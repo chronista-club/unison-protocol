@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use super::{SystemStream, NetworkError, StreamHandle};
 
 /// Unisonサービストレイト - SystemStreamをベースとした高レベルサービスインターフェース
+#[allow(async_fn_in_trait)]
 pub trait Service: SystemStream {
     /// サービス種別識別子
     fn service_type(&self) -> &str;
@@ -111,6 +112,7 @@ pub trait Service: SystemStream {
 }
 
 /// リアルタイム機能付きの拡張Service
+#[allow(async_fn_in_trait)]
 pub trait RealtimeService: Service {
     /// 優先度付き時間感応型サービスデータの送信
     async fn send_realtime(

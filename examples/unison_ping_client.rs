@@ -1,5 +1,6 @@
 use anyhow::Result;
-use unison_protocol::{UnisonProtocol, UnisonClient, ProtocolClient};
+use unison_protocol::{UnisonProtocol, ProtocolClient};
+use unison_protocol::network::UnisonClient;
 use serde_json::json;
 use std::time::Instant;
 use tracing::{info, Level};

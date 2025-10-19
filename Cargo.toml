@@ -18,6 +18,7 @@ exclude = [
     "benches/*",
     "tests/*"
 ]
+rust-version = "1.85"
 
 [dependencies]
 miette = { version = "7.2", features = ["fancy"] }
