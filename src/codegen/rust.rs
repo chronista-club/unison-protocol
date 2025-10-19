@@ -1,12 +1,12 @@
+use super::CodeGenerator;
+use crate::parser::{
+    DefaultValue, Enum, Field, FieldType, Message, Method, MethodMessage, ParsedSchema, Protocol,
+    Service, Stream, TypeRegistry,
+};
 use anyhow::Result;
 use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use crate::parser::{
-    ParsedSchema, TypeRegistry, Protocol, Service, Method, Stream, 
-    Message, Field, FieldType, Enum, DefaultValue
-};
-use super::CodeGenerator;
 
 pub struct RustGenerator;
 
@@ -52,12 +52,12 @@ impl RustGenerator {
             use chrono::{DateTime, Utc};
             use uuid::Uuid;
             use std::collections::HashMap;
-            
+
             #[allow(unused_imports)]
             use crate::network::{ProtocolClient, ProtocolServer};
         }
     }
-    
+
     fn generate_protocol(&self, protocol: &Protocol, type_registry: &TypeRegistry) -> TokenStream {
         let mut tokens = TokenStream::new();
 
@@ -78,10 +78,12 @@ impl RustGenerator {
 
         tokens
     }
-    
+
     fn generate_enum(&self, enum_def: &Enum) -> TokenStream {
         let name = format_ident!("{}", enum_def.name);
-        let variants: Vec<_> = enum_def.values.iter()
+        let variants: Vec<_> = enum_def
+            .values
+            .iter()
             .map(|v| {
                 let variant = format_ident!("{}", v.to_case(Case::Pascal));
                 let value = v;
@@ -91,7 +93,7 @@ impl RustGenerator {
                 }
             })
             .collect();
-        
+
         quote! {
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
             #[serde(rename_all = "snake_case")]
@@ -100,7 +102,7 @@ impl RustGenerator {
             }
         }
     }
-    
+
     fn generate_message(&self, message: &Message, type_registry: &TypeRegistry) -> TokenStream {
         let name = format_ident!("{}", message.name.trim_start_matches("_inline_"));
 
@@ -109,7 +111,9 @@ impl RustGenerator {
             return TokenStream::new();
         }
 
-        let fields: Vec<_> = message.fields.iter()
+        let fields: Vec<_> = message
+            .fields
+            .iter()
             .map(|f| self.generate_field(f, type_registry))
             .collect();
 
@@ -120,7 +124,7 @@ impl RustGenerator {
             }
         }
     }
-    
+
     fn generate_field(&self, field: &Field, type_registry: &TypeRegistry) -> TokenStream {
         let name = format_ident!("{}", field.name);
         let rust_type = self.field_type_to_rust(&field.field_type(), type_registry);
@@ -137,7 +141,7 @@ impl RustGenerator {
         let (field_type, extra_attrs) = if !field.required {
             (
                 quote! { Option<#rust_type> },
-                quote! { #[serde(skip_serializing_if = "Option::is_none")] }
+                quote! { #[serde(skip_serializing_if = "Option::is_none")] },
             )
         } else {
             (rust_type, TokenStream::new())
@@ -157,8 +161,12 @@ impl RustGenerator {
             pub #name: #field_type
         }
     }
-    
-    fn field_type_to_rust(&self, field_type: &FieldType, type_registry: &TypeRegistry) -> TokenStream {
+
+    fn field_type_to_rust(
+        &self,
+        field_type: &FieldType,
+        type_registry: &TypeRegistry,
+    ) -> TokenStream {
         match field_type {
             FieldType::String => quote! { String },
             FieldType::Int => quote! { i64 },
@@ -180,7 +188,8 @@ impl RustGenerator {
             }
             FieldType::Custom(name) => {
                 if let Some(rust_type) = type_registry.get_rust_type(name) {
-                    let tokens: TokenStream = rust_type.parse().unwrap_or_else(|_| quote! { String });
+                    let tokens: TokenStream =
+                        rust_type.parse().unwrap_or_else(|_| quote! { String });
                     tokens
                 } else {
                     let ident = format_ident!("{}", name);
@@ -189,7 +198,7 @@ impl RustGenerator {
             }
         }
     }
-    
+
     fn generate_default_attr(&self, default: &DefaultValue) -> TokenStream {
         match default {
             DefaultValue::String(s) => {
@@ -213,27 +222,35 @@ impl RustGenerator {
             _ => TokenStream::new(),
         }
     }
-    
+
     fn generate_service(&self, service: &Service, type_registry: &TypeRegistry) -> TokenStream {
         let service_name = format_ident!("{}Service", service.name);
         let client_name = format_ident!("{}Client", service.name);
-        
-        let methods: Vec<_> = service.methods.iter()
+
+        let methods: Vec<_> = service
+            .methods
+            .iter()
             .map(|m| self.generate_service_method(m, type_registry))
             .collect();
-        
-        let streams: Vec<_> = service.streams.iter()
+
+        let streams: Vec<_> = service
+            .streams
+            .iter()
             .map(|s| self.generate_service_stream(s, type_registry))
             .collect();
-        
-        let client_methods: Vec<_> = service.methods.iter()
+
+        let client_methods: Vec<_> = service
+            .methods
+            .iter()
             .map(|m| self.generate_client_method(m, type_registry))
             .collect();
-        
-        let client_streams: Vec<_> = service.streams.iter()
+
+        let client_streams: Vec<_> = service
+            .streams
+            .iter()
             .map(|s| self.generate_client_stream(s, type_registry))
             .collect();
-        
+
         quote! {
             // サービストレイト
             pub trait #service_name: Send + Sync {
@@ -256,49 +273,65 @@ impl RustGenerator {
             }
         }
     }
-    
-    fn generate_service_method(&self, method: &Method, _type_registry: &TypeRegistry) -> TokenStream {
+
+    fn generate_service_method(
+        &self,
+        method: &Method,
+        _type_registry: &TypeRegistry,
+    ) -> TokenStream {
         let name = format_ident!("{}", method.name.to_case(Case::Snake));
         let request_type = self.method_type_name(&method.request, "Request");
         let response_type = self.method_type_name(&method.response, "Response");
-        
+
         quote! {
             async fn #name(&self, request: #request_type) -> Result<#response_type>;
         }
     }
-    
-    fn generate_service_stream(&self, stream: &Stream, _type_registry: &TypeRegistry) -> TokenStream {
+
+    fn generate_service_stream(
+        &self,
+        stream: &Stream,
+        _type_registry: &TypeRegistry,
+    ) -> TokenStream {
         let name = format_ident!("{}", stream.name.to_case(Case::Snake));
         let request_type = self.method_type_name(&stream.request, "Request");
         let response_type = self.method_type_name(&stream.response, "Response");
-        
+
         quote! {
             async fn #name(
-                &self, 
+                &self,
                 request: #request_type
             ) -> Result<Box<dyn futures_util::Stream<Item = Result<#response_type>> + Send + Unpin>>;
         }
     }
-    
-    fn generate_client_method(&self, method: &Method, _type_registry: &TypeRegistry) -> TokenStream {
+
+    fn generate_client_method(
+        &self,
+        method: &Method,
+        _type_registry: &TypeRegistry,
+    ) -> TokenStream {
         let name = format_ident!("{}", method.name.to_case(Case::Snake));
         let request_type = self.method_type_name(&method.request, "Request");
         let response_type = self.method_type_name(&method.response, "Response");
         let method_name = &method.name;
-        
+
         quote! {
             pub async fn #name(&self, request: #request_type) -> Result<#response_type> {
                 self.inner.call(#method_name, request).await
             }
         }
     }
-    
-    fn generate_client_stream(&self, stream: &Stream, _type_registry: &TypeRegistry) -> TokenStream {
+
+    fn generate_client_stream(
+        &self,
+        stream: &Stream,
+        _type_registry: &TypeRegistry,
+    ) -> TokenStream {
         let name = format_ident!("{}", stream.name.to_case(Case::Snake));
         let request_type = self.method_type_name(&stream.request, "Request");
         let response_type = self.method_type_name(&stream.response, "Response");
         let stream_name = &stream.name;
-        
+
         quote! {
             pub async fn #name(
                 &self,
@@ -308,31 +341,28 @@ impl RustGenerator {
             }
         }
     }
-    
-    fn method_type_name(&self, message: &Option<Message>, suffix: &str) -> TokenStream {
-        if let Some(msg) = message {
-            if msg.name.starts_with("_inline_") {
-                // インライン型を生成
-                let fields: Vec<_> = msg.fields.iter()
-                    .map(|f| {
-                        let name = format_ident!("{}", f.name);
-                        let ty = self.field_type_to_rust(&f.field_type(), &TypeRegistry::new());
-                        quote! { pub #name: #ty }
-                    })
-                    .collect();
 
-                quote! {
-                    {
-                        #[derive(Debug, Clone, Serialize, Deserialize)]
-                        struct #suffix {
-                            #(#fields),*
-                        }
-                        #suffix
+    fn method_type_name(&self, message: &Option<MethodMessage>, suffix: &str) -> TokenStream {
+        if let Some(msg) = message {
+            // MethodMessage は常にインライン型を生成
+            let fields: Vec<_> = msg
+                .fields
+                .iter()
+                .map(|f| {
+                    let name = format_ident!("{}", f.name);
+                    let ty = self.field_type_to_rust(&f.field_type(), &TypeRegistry::new());
+                    quote! { pub #name: #ty }
+                })
+                .collect();
+
+            quote! {
+                {
+                    #[derive(Debug, Clone, Serialize, Deserialize)]
+                    struct #suffix {
+                        #(#fields),*
                     }
+                    #suffix
                 }
-            } else {
-                let ident = format_ident!("{}", msg.name);
-                quote! { #ident }
             }
         } else {
             quote! { () }

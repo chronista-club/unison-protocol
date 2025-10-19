@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use super::TypeRegistry;
+use std::collections::HashMap;
 
 /// Parsed schema representation
 #[derive(Debug, Default, Clone, knuffel::Decode)]
@@ -39,6 +39,9 @@ pub struct Protocol {
     #[knuffel(child, unwrap(argument))]
     pub namespace: Option<String>,
 
+    #[knuffel(child, unwrap(argument))]
+    pub description: Option<String>,
+
     #[knuffel(children(name = "service"))]
     pub services: Vec<Service>,
 
@@ -55,6 +58,9 @@ pub struct Service {
     #[knuffel(argument)]
     pub name: String,
 
+    #[knuffel(child, unwrap(argument))]
+    pub description: Option<String>,
+
     #[knuffel(children(name = "method"))]
     pub methods: Vec<Method>,
 
@@ -68,11 +74,21 @@ pub struct Method {
     #[knuffel(argument)]
     pub name: String,
 
-    #[knuffel(child)]
-    pub request: Option<Message>,
+    #[knuffel(child, unwrap(argument))]
+    pub description: Option<String>,
 
     #[knuffel(child)]
-    pub response: Option<Message>,
+    pub request: Option<MethodMessage>,
+
+    #[knuffel(child)]
+    pub response: Option<MethodMessage>,
+}
+
+/// Method request/response definition (without name argument)
+#[derive(Debug, Clone, knuffel::Decode)]
+pub struct MethodMessage {
+    #[knuffel(children(name = "field"))]
+    pub fields: Vec<Field>,
 }
 
 /// Streaming endpoint definition
@@ -82,10 +98,10 @@ pub struct Stream {
     pub name: String,
 
     #[knuffel(child)]
-    pub request: Option<Message>,
+    pub request: Option<MethodMessage>,
 
     #[knuffel(child)]
-    pub response: Option<Message>,
+    pub response: Option<MethodMessage>,
 }
 
 /// Message/struct definition
@@ -93,6 +109,9 @@ pub struct Stream {
 pub struct Message {
     #[knuffel(argument)]
     pub name: String,
+
+    #[knuffel(child, unwrap(argument))]
+    pub description: Option<String>,
 
     #[knuffel(children(name = "field"))]
     pub fields: Vec<Field>,
@@ -110,7 +129,7 @@ pub struct Field {
     #[knuffel(property, default = false)]
     pub required: bool,
 
-    #[knuffel(property)]
+    #[knuffel(property(name = "default"))]
     pub default_str: Option<String>,
 
     #[knuffel(property)]
@@ -127,6 +146,9 @@ pub struct Field {
 
     #[knuffel(property)]
     pub pattern: Option<String>,
+
+    #[knuffel(property)]
+    pub description: Option<String>,
 }
 
 impl Field {
@@ -137,7 +159,9 @@ impl Field {
 
     /// デフォルト値を取得
     pub fn default(&self) -> Option<DefaultValue> {
-        self.default_str.as_ref().and_then(|s| self.parse_default(s))
+        self.default_str
+            .as_ref()
+            .and_then(|s| self.parse_default(s))
     }
 
     /// 制約を取得
@@ -270,10 +294,9 @@ impl FieldType {
                 "String".to_string()
             }
             FieldType::Object => "serde_json::Value".to_string(),
-            FieldType::Custom(name) => {
-                type_registry.get_rust_type(name)
-                    .unwrap_or_else(|| name.clone())
-            }
+            FieldType::Custom(name) => type_registry
+                .get_rust_type(name)
+                .unwrap_or_else(|| name.clone()),
         }
     }
 
@@ -289,16 +312,14 @@ impl FieldType {
                 "Record<string, {}>",
                 value.to_typescript_type(type_registry)
             ),
-            FieldType::Enum(values) => {
-                values.iter()
-                    .map(|v| format!("'{}'", v))
-                    .collect::<Vec<_>>()
-                    .join(" | ")
-            }
-            FieldType::Custom(name) => {
-                type_registry.get_typescript_type(name)
-                    .unwrap_or_else(|| name.clone())
-            }
+            FieldType::Enum(values) => values
+                .iter()
+                .map(|v| format!("'{}'", v))
+                .collect::<Vec<_>>()
+                .join(" | "),
+            FieldType::Custom(name) => type_registry
+                .get_typescript_type(name)
+                .unwrap_or_else(|| name.clone()),
         }
     }
 }
