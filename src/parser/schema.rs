@@ -2,65 +2,183 @@ use std::collections::HashMap;
 use super::TypeRegistry;
 
 /// Parsed schema representation
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, knuffel::Decode)]
 pub struct ParsedSchema {
+    #[knuffel(child)]
     pub protocol: Option<Protocol>,
-    pub imports: Vec<String>,
+
+    #[knuffel(children(name = "import"))]
+    pub imports: Vec<Import>,
+
+    #[knuffel(children(name = "message"))]
     pub messages: Vec<Message>,
+
+    #[knuffel(children(name = "enum"))]
     pub enums: Vec<Enum>,
+
+    #[knuffel(children(name = "typedef"))]
     pub typedefs: Vec<TypeDef>,
 }
 
+/// Import definition
+#[derive(Debug, Clone, knuffel::Decode)]
+pub struct Import {
+    #[knuffel(argument)]
+    pub path: String,
+}
+
 /// Protocol definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, knuffel::Decode)]
 pub struct Protocol {
+    #[knuffel(argument)]
     pub name: String,
+
+    #[knuffel(property)]
     pub version: String,
+
+    #[knuffel(child, unwrap(argument))]
     pub namespace: Option<String>,
+
+    #[knuffel(children(name = "service"))]
     pub services: Vec<Service>,
+
+    #[knuffel(children(name = "message"))]
     pub messages: Vec<Message>,
+
+    #[knuffel(children(name = "enum"))]
     pub enums: Vec<Enum>,
 }
 
 /// Service definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, knuffel::Decode)]
 pub struct Service {
+    #[knuffel(argument)]
     pub name: String,
+
+    #[knuffel(children(name = "method"))]
     pub methods: Vec<Method>,
+
+    #[knuffel(children(name = "stream"))]
     pub streams: Vec<Stream>,
 }
 
 /// RPC Method definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, knuffel::Decode)]
 pub struct Method {
+    #[knuffel(argument)]
     pub name: String,
+
+    #[knuffel(child)]
     pub request: Option<Message>,
+
+    #[knuffel(child)]
     pub response: Option<Message>,
 }
 
 /// Streaming endpoint definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, knuffel::Decode)]
 pub struct Stream {
+    #[knuffel(argument)]
     pub name: String,
+
+    #[knuffel(child)]
     pub request: Option<Message>,
+
+    #[knuffel(child)]
     pub response: Option<Message>,
 }
 
 /// Message/struct definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, knuffel::Decode)]
 pub struct Message {
+    #[knuffel(argument)]
     pub name: String,
+
+    #[knuffel(children(name = "field"))]
     pub fields: Vec<Field>,
 }
 
-/// Field definition
-#[derive(Debug, Clone)]
+/// Field definition (KDL representation)
+#[derive(Debug, Clone, knuffel::Decode)]
 pub struct Field {
+    #[knuffel(argument)]
     pub name: String,
-    pub field_type: FieldType,
+
+    #[knuffel(property(name = "type"))]
+    pub field_type_str: String,
+
+    #[knuffel(property, default = false)]
     pub required: bool,
-    pub default: Option<DefaultValue>,
-    pub constraints: Constraints,
+
+    #[knuffel(property)]
+    pub default_str: Option<String>,
+
+    #[knuffel(property)]
+    pub min: Option<i64>,
+
+    #[knuffel(property)]
+    pub max: Option<i64>,
+
+    #[knuffel(property)]
+    pub min_length: Option<usize>,
+
+    #[knuffel(property)]
+    pub max_length: Option<usize>,
+
+    #[knuffel(property)]
+    pub pattern: Option<String>,
+}
+
+impl Field {
+    /// フィールド型を取得
+    pub fn field_type(&self) -> FieldType {
+        self.parse_field_type(&self.field_type_str)
+    }
+
+    /// デフォルト値を取得
+    pub fn default(&self) -> Option<DefaultValue> {
+        self.default_str.as_ref().and_then(|s| self.parse_default(s))
+    }
+
+    /// 制約を取得
+    pub fn constraints(&self) -> Constraints {
+        Constraints {
+            min: self.min,
+            max: self.max,
+            min_length: self.min_length,
+            max_length: self.max_length,
+            pattern: self.pattern.clone(),
+        }
+    }
+
+    fn parse_field_type(&self, type_str: &str) -> FieldType {
+        match type_str {
+            "string" => FieldType::String,
+            "int" => FieldType::Int,
+            "float" => FieldType::Float,
+            "bool" => FieldType::Bool,
+            "json" => FieldType::Json,
+            "object" => FieldType::Object,
+            _ => FieldType::Custom(type_str.to_string()),
+        }
+    }
+
+    fn parse_default(&self, s: &str) -> Option<DefaultValue> {
+        // 簡易的なパース実装
+        if s == "null" {
+            Some(DefaultValue::Null)
+        } else if s == "true" {
+            Some(DefaultValue::Bool(true))
+        } else if s == "false" {
+            Some(DefaultValue::Bool(false))
+        } else if let Ok(i) = s.parse::<i64>() {
+            Some(DefaultValue::Int(i))
+        } else if let Ok(f) = s.parse::<f64>() {
+            Some(DefaultValue::Float(f))
+        } else {
+            Some(DefaultValue::String(s.to_string()))
+        }
+    }
 }
 
 /// Field type
@@ -79,20 +197,34 @@ pub enum FieldType {
 }
 
 /// Enum definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, knuffel::Decode)]
 pub struct Enum {
+    #[knuffel(argument)]
     pub name: String,
+
+    #[knuffel(child, unwrap(arguments))]
     pub values: Vec<String>,
 }
 
 /// Type definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, knuffel::Decode)]
 pub struct TypeDef {
+    #[knuffel(argument)]
     pub name: String,
+
+    #[knuffel(child, unwrap(argument))]
     pub base_type: String,
+
+    #[knuffel(child, unwrap(argument))]
     pub rust_type: Option<String>,
+
+    #[knuffel(child, unwrap(argument))]
     pub typescript_type: Option<String>,
+
+    #[knuffel(child, unwrap(argument))]
     pub format: Option<String>,
+
+    #[knuffel(child, unwrap(argument))]
     pub pattern: Option<String>,
 }
 

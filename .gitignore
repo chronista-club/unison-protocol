@@ -43,3 +43,6 @@ assets/certs/*.der
 !assets/certs/README.md
 
 *.code-workspace
+
+# Local files (exclude all *.local.* files)
+*.local.*

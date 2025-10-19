@@ -123,7 +123,7 @@ impl RustGenerator {
     
     fn generate_field(&self, field: &Field, type_registry: &TypeRegistry) -> TokenStream {
         let name = format_ident!("{}", field.name);
-        let rust_type = self.field_type_to_rust(&field.field_type, type_registry);
+        let rust_type = self.field_type_to_rust(&field.field_type(), type_registry);
 
         let mut attributes = vec![];
 
@@ -144,7 +144,7 @@ impl RustGenerator {
         };
 
         // デフォルト値の処理
-        let default_attr = if let Some(default) = &field.default {
+        let default_attr = if let Some(default) = &field.default() {
             self.generate_default_attr(default)
         } else {
             TokenStream::new()
@@ -316,7 +316,7 @@ impl RustGenerator {
                 let fields: Vec<_> = msg.fields.iter()
                     .map(|f| {
                         let name = format_ident!("{}", f.name);
-                        let ty = self.field_type_to_rust(&f.field_type, &TypeRegistry::new());
+                        let ty = self.field_type_to_rust(&f.field_type(), &TypeRegistry::new());
                         quote! { pub #name: #ty }
                     })
                     .collect();

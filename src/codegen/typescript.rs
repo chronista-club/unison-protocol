@@ -117,7 +117,7 @@ export type LanguageCode = string; // ISO 639-1 format
     
     fn generate_field(&self, field: &Field, type_registry: &TypeRegistry) -> String {
         let name = &field.name;
-        let ts_type = self.field_type_to_typescript(&field.field_type, type_registry);
+        let ts_type = self.field_type_to_typescript(&field.field_type(), type_registry);
         
         let optional = if !field.required { "?" } else { "" };
         
@@ -126,17 +126,17 @@ export type LanguageCode = string; // ISO 639-1 format
         // 制約とデフォルト値のJSDocコメントを追加
         let mut comments = Vec::new();
         
-        if let Some(default) = &field.default {
+        if let Some(default) = &field.default() {
             comments.push(format!("@default {}", self.default_value_to_string(default)));
         }
         
-        if field.constraints.min.is_some() || field.constraints.max.is_some() {
-            if let (Some(min), Some(max)) = (field.constraints.min, field.constraints.max) {
+        if field.constraints().min.is_some() || field.constraints().max.is_some() {
+            if let (Some(min), Some(max)) = (field.constraints().min, field.constraints().max) {
                 comments.push(format!("@minimum {} @maximum {}", min, max));
             }
         }
         
-        if let Some(pattern) = &field.constraints.pattern {
+        if let Some(pattern) = &field.constraints().pattern {
             comments.push(format!("@pattern {}", pattern));
         }
         
