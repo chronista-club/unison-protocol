@@ -87,6 +87,19 @@ where
         })
     }
 
+    /// ヘッダーとペイロードを指定してパケットを作成（カスタム設定）
+    pub fn with_header_and_config(
+        mut header: UnisonPacketHeader,
+        payload: T,
+        config: &PacketConfig,
+    ) -> Result<Self, SerializationError> {
+        let raw_data = PacketSerializer::serialize_with_config(&mut header, &payload, config)?;
+        Ok(Self {
+            raw_data,
+            _phantom: PhantomData,
+        })
+    }
+
     /// Bytesからパケットを復元
     pub fn from_bytes(bytes: &Bytes) -> Result<Self, SerializationError> {
         // ヘッダーの検証のみ行う（ペイロードは遅延デシリアライズ）
@@ -239,8 +252,13 @@ where
         // タイムスタンプを更新
         self.header.update_timestamp();
 
-        // パケットを作成
-        UnisonPacket::with_header(self.header, payload)
+        // チェックサムが有効な場合は設定を適用
+        if self.enable_checksum {
+            let config = PacketConfig::default().with_checksum(ChecksumConfig::enabled());
+            UnisonPacket::with_header_and_config(self.header, payload, &config)
+        } else {
+            UnisonPacket::with_header(self.header, payload)
+        }
     }
 }
 
