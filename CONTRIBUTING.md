@@ -1,96 +1,96 @@
-# Contributing to Unison Protocol
+# Unison Protocol への貢献
 
-Thank you for your interest in contributing to Unison Protocol! We welcome contributions from the community and are grateful for any help you can provide.
+Unison Protocol への貢献に興味を持っていただきありがとうございます！コミュニティからの貢献を歓迎し、どんな形での支援も感謝しています。
 
-## Table of Contents
+## 目次
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [How to Contribute](#how-to-contribute)
-- [Development Process](#development-process)
-- [Pull Request Process](#pull-request-process)
-- [Style Guidelines](#style-guidelines)
-- [Testing](#testing)
-- [Documentation](#documentation)
-- [Community](#community)
+- [行動規範](#行動規範)
+- [はじめに](#はじめに)
+- [貢献方法](#貢献方法)
+- [開発プロセス](#開発プロセス)
+- [プルリクエストプロセス](#プルリクエストプロセス)
+- [スタイルガイドライン](#スタイルガイドライン)
+- [テスト](#テスト)
+- [ドキュメント](#ドキュメント)
+- [コミュニティ](#コミュニティ)
 
-## Code of Conduct
+## 行動規範
 
-This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to contact@chronista.club.
+このプロジェクトとその参加者は、[行動規範](CODE_OF_CONDUCT.ja.md)に従います。参加することで、この規範を守ることが期待されます。受け入れがたい行動は contact@chronista.club に報告してください。
 
-## Getting Started
+## はじめに
 
-### Prerequisites
+### 前提条件
 
-- Rust 1.70 or higher
-- Tokio 1.40 or higher
-- OpenSSL or BoringSSL (for QUIC support)
+- Rust 1.70 以上
+- Tokio 1.40 以上
+- OpenSSL または BoringSSL（QUIC サポート用）
 
-### Setting up your development environment
+### 開発環境のセットアップ
 
-1. Fork the repository on GitHub
-2. Clone your fork locally:
+1. GitHub でリポジトリをフォーク
+2. フォークをローカルにクローン：
    ```bash
    git clone https://github.com/your-username/unison-protocol.git
    cd unison-protocol
    ```
 
-3. Add the upstream repository as a remote:
+3. アップストリームリポジトリをリモートとして追加：
    ```bash
    git remote add upstream https://github.com/chronista-club/unison-protocol.git
    ```
 
-4. Build the project:
+4. プロジェクトをビルド：
    ```bash
    cargo build
    ```
 
-5. Run tests to ensure everything is working:
+5. テストを実行して動作確認：
    ```bash
    cargo test
    ```
 
-## How to Contribute
+## 貢献方法
 
-### Reporting Bugs
+### バグ報告
 
-Before creating bug reports, please check existing issues to avoid duplicates. When you create a bug report, include as many details as possible:
+バグレポートを作成する前に、重複を避けるため既存の Issue を確認してください。バグレポートを作成する際は、できるだけ詳細に記載してください：
 
-- Use a clear and descriptive title
-- Describe the exact steps to reproduce the problem
-- Provide specific examples to demonstrate the steps
-- Describe the behavior you observed and explain why it's a problem
-- Explain the behavior you expected to see
-- Include your environment details (OS, Rust version, etc.)
+- 明確で説明的なタイトルを使用
+- 問題を再現する正確な手順を記述
+- 手順を示す具体例を提供
+- 観察された動作と、それが問題である理由を説明
+- 期待される動作を説明
+- 環境の詳細（OS、Rust バージョンなど）を含める
 
-### Suggesting Enhancements
+### 機能提案
 
-Enhancement suggestions are tracked as GitHub issues. When creating an enhancement suggestion:
+機能提案は GitHub Issue として管理されます。機能提案を作成する際は：
 
-- Use a clear and descriptive title
-- Provide a detailed description of the proposed enhancement
-- Include examples of how the feature would be used
-- Explain why this enhancement would be useful to most users
+- 明確で説明的なタイトルを使用
+- 提案する機能の詳細な説明を提供
+- 機能の使用例を含める
+- なぜこの機能が多くのユーザーに有用かを説明
 
-### Your First Code Contribution
+### 初めてのコード貢献
 
-Unsure where to begin? Look for issues labeled:
+どこから始めればよいか分からない場合は、以下のラベルが付いた Issue を探してください：
 
-- `good first issue` - Good for newcomers
-- `help wanted` - Extra attention is needed
-- `documentation` - Documentation improvements
+- `good first issue` - 初心者向け
+- `help wanted` - 追加の支援が必要
+- `documentation` - ドキュメントの改善
 
-## Development Process
+## 開発プロセス
 
-### Branching Strategy
+### ブランチ戦略
 
-- `main` - The main development branch
-- Feature branches should be created from `main`
-- Use descriptive branch names: `feature/add-new-handler`, `fix/connection-timeout`, etc.
+- `main` - メイン開発ブランチ
+- フィーチャーブランチは `main` から作成
+- 説明的なブランチ名を使用：`feature/add-new-handler`、`fix/connection-timeout` など
 
-### Commit Messages
+### コミットメッセージ
 
-We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+[Conventional Commits](https://www.conventionalcommits.org/) 仕様に従います：
 
 ```
 <type>(<scope>): <subject>
@@ -100,139 +100,139 @@ We follow the [Conventional Commits](https://www.conventionalcommits.org/) speci
 <footer>
 ```
 
-Types:
-- `feat`: A new feature
-- `fix`: A bug fix
-- `docs`: Documentation changes
-- `style`: Code style changes (formatting, etc.)
-- `refactor`: Code refactoring
-- `perf`: Performance improvements
-- `test`: Adding or updating tests
-- `chore`: Maintenance tasks
+タイプ：
+- `feat`: 新機能
+- `fix`: バグ修正
+- `docs`: ドキュメント変更
+- `style`: コードスタイル変更（フォーマットなど）
+- `refactor`: コードリファクタリング
+- `perf`: パフォーマンス改善
+- `test`: テストの追加または更新
+- `chore`: メンテナンスタスク
 
-Examples:
+例：
 ```
-feat(network): add retry logic for QUIC connections
-fix(parser): handle edge case in KDL parsing
-docs: update API documentation for UnisonStream
+feat(network): QUIC接続のリトライロジックを追加
+fix(parser): KDLパースのエッジケースを処理
+docs: UnisonStreamのAPIドキュメントを更新
 ```
 
-## Pull Request Process
+## プルリクエストプロセス
 
-1. Ensure your code adheres to the project's style guidelines
-2. Update documentation as needed
-3. Add tests for new functionality
-4. Ensure all tests pass: `cargo test`
-5. Run formatting: `cargo fmt`
-6. Run linting: `cargo clippy`
-7. Update the CHANGELOG.md with your changes (if applicable)
-8. Create a pull request with a clear title and description
+1. コードがプロジェクトのスタイルガイドラインに準拠していることを確認
+2. 必要に応じてドキュメントを更新
+3. 新機能にテストを追加
+4. すべてのテストが合格することを確認：`cargo test`
+5. フォーマットを実行：`cargo fmt`
+6. リンティングを実行：`cargo clippy`
+7. 変更を CHANGELOG.md に記載（該当する場合）
+8. 明確なタイトルと説明でプルリクエストを作成
 
-### PR Review Process
+### PR レビュープロセス
 
-- At least one maintainer review is required
-- All CI checks must pass
-- Code coverage should not decrease
-- Documentation must be updated for new features
+- 少なくとも1人のメンテナーによるレビューが必要
+- すべての CI チェックが合格する必要がある
+- コードカバレッジが低下しないこと
+- 新機能にはドキュメントの更新が必要
 
-## Style Guidelines
+## スタイルガイドライン
 
-### Rust Code Style
+### Rust コードスタイル
 
-- Follow standard Rust conventions and idioms
-- Use `cargo fmt` to format your code
-- Use `cargo clippy` to catch common mistakes
-- Prefer explicit error handling over `unwrap()`
-- Write descriptive variable and function names
-- Add comments for complex logic
+- 標準的な Rust の慣習とイディオムに従う
+- `cargo fmt` でコードをフォーマット
+- `cargo clippy` で一般的なミスをキャッチ
+- `unwrap()` より明示的なエラー処理を優先
+- 説明的な変数名と関数名を使用
+- 複雑なロジックにはコメントを追加
 
-### Documentation Style
+### ドキュメントスタイル
 
-- Use clear, concise language
-- Include code examples where appropriate
-- Keep README and other docs up to date
-- Document all public APIs
+- 明確で簡潔な言語を使用
+- 適切な場所にコード例を含める
+- README と他のドキュメントを最新に保つ
+- すべてのパブリック API をドキュメント化
 
-## Testing
+## テスト
 
-### Running Tests
+### テストの実行
 
 ```bash
-# Run all tests
+# すべてのテストを実行
 cargo test
 
-# Run specific test
+# 特定のテストを実行
 cargo test test_name
 
-# Run tests with output
+# 出力付きでテストを実行
 RUST_LOG=debug cargo test -- --nocapture
 
-# Run integration tests
+# 統合テストを実行
 cargo test --test quic_integration_test
 ```
 
-### Writing Tests
+### テストの作成
 
-- Write unit tests for all new functionality
-- Include integration tests for complex features
-- Aim for at least 80% code coverage
-- Test edge cases and error conditions
+- すべての新機能に単体テストを作成
+- 複雑な機能には統合テストを含める
+- 少なくとも 80% のコードカバレッジを目指す
+- エッジケースとエラー条件をテスト
 
-### Benchmarking
+### ベンチマーク
 
 ```bash
-# Run benchmarks
+# ベンチマークを実行
 cargo bench
 
-# Run specific benchmark
+# 特定のベンチマークを実行
 cargo bench bench_name
 ```
 
-## Documentation
+## ドキュメント
 
-- Document all public APIs using Rust doc comments
-- Include examples in documentation
-- Keep the README up to date
-- Update architectural documentation for significant changes
+- Rust ドキュメントコメントを使用してすべてのパブリック API をドキュメント化
+- ドキュメントに例を含める
+- README を最新に保つ
+- 重要な変更にはアーキテクチャドキュメントを更新
 
-### Building Documentation
+### ドキュメントのビルド
 
 ```bash
-# Build and open documentation
+# ドキュメントをビルドして開く
 cargo doc --open
 
-# Build documentation with private items
+# プライベートアイテムを含むドキュメントをビルド
 cargo doc --document-private-items
 ```
 
-## Community
+## コミュニティ
 
-### Communication Channels
+### コミュニケーションチャンネル
 
-- GitHub Issues: Bug reports and feature requests
-- GitHub Discussions: General discussions and Q&A
-- Discord: [Join our Discord server](https://discord.gg/unison-protocol) (Coming soon)
+- GitHub Issues: バグレポートと機能リクエスト
+- GitHub Discussions: 一般的な議論と Q&A
+- Discord: [Discord サーバーに参加](https://discord.gg/unison-protocol)（準備中）
 
-### Getting Help
+### ヘルプを得る
 
-If you need help, you can:
+ヘルプが必要な場合：
 
-1. Check the [documentation](https://docs.rs/unison-protocol)
-2. Search existing issues
-3. Ask in GitHub Discussions
-4. Reach out on Discord
+1. [ドキュメント](https://docs.rs/unison-protocol)を確認
+2. 既存の Issue を検索
+3. GitHub Discussions で質問
+4. Discord でお問い合わせ
 
-## Recognition
+## 謝辞
 
-Contributors will be recognized in:
-- The project's CHANGELOG.md
-- Special mentions in release notes
-- Our contributors list
+貢献者は以下で認識されます：
+- プロジェクトの CHANGELOG.md
+- リリースノートでの特別な言及
+- 貢献者リスト
 
-## License
+## ライセンス
 
-By contributing to Unison Protocol, you agree that your contributions will be licensed under the MIT License.
+Unison Protocol に貢献することで、あなたの貢献が MIT ライセンスの下でライセンスされることに同意したものとみなされます。
 
 ---
 
-Thank you for contributing to Unison Protocol! Your efforts help make this project better for everyone. 🎵
+Unison Protocol への貢献ありがとうございます！あなたの努力により、このプロジェクトはすべての人にとってより良いものになります。🎵

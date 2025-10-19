@@ -53,6 +53,12 @@ anyhow = "1.0"
 cgp = "0.4.2"
 cgp-component = "0.4.2"
 
+# Packet module dependencies
+bytes = "1.10"
+rkyv = { version = "0.7", features = ["validation", "alloc", "size_32"] }
+zstd = "0.13"
+crc32fast = "1.4"
+
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.10", features = ["v4", "serde"] }
@@ -90,4 +96,3 @@ harness = false
 [[bench]]
 name = "throughput"
 harness = false
-

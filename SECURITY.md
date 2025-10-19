@@ -1,127 +1,127 @@
-# Security Policy
+# セキュリティポリシー
 
-## Supported Versions
+## サポート対象バージョン
 
-We release patches for security vulnerabilities. Which versions are eligible for receiving such patches depends on the CVSS v3.0 Rating:
+セキュリティ脆弱性に対するパッチをリリースしています。パッチを受け取る対象となるバージョンは、CVSS v3.0 レーティングに基づきます：
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
-| < 0.1   | :x:                |
+| バージョン | サポート状況        |
+| --------- | ------------------ |
+| 0.1.x     | :white_check_mark: |
+| < 0.1     | :x:                |
 
-## Reporting a Vulnerability
+## 脆弱性の報告
 
-We take the security of Unison Protocol seriously. If you have discovered a security vulnerability in our project, we appreciate your help in disclosing it to us in a responsible manner.
+Unison Protocol のセキュリティを重要視しています。プロジェクトにセキュリティ脆弱性を発見された場合は、責任ある方法での開示にご協力をお願いします。
 
-### How to Report
+### 報告方法
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+**セキュリティ脆弱性を公開の GitHub Issue で報告しないでください。**
 
-Instead, please report them via email to:
-- **Email**: security@chronista.club
-- **Subject Line**: [SECURITY] Unison Protocol - [Brief Description]
+代わりに、以下のメールアドレスにご報告ください：
+- **メール**: security@chronista.club
+- **件名**: [SECURITY] Unison Protocol - [簡単な説明]
 
-### What to Include
+### 報告に含める情報
 
-Please include the following information in your report:
+報告には以下の情報を含めてください：
 
-1. **Type of issue** (e.g., buffer overflow, SQL injection, cross-site scripting, etc.)
-2. **Full paths of source file(s)** related to the manifestation of the issue
-3. **Location** of the affected source code (tag/branch/commit or direct URL)
-4. **Step-by-step instructions** to reproduce the issue
-5. **Proof-of-concept or exploit code** (if possible)
-6. **Impact** of the issue, including how an attacker might exploit it
-7. **Any special configuration** required to reproduce the issue
+1. **問題の種類**（バッファオーバーフロー、SQLインジェクション、クロスサイトスクリプティングなど）
+2. **問題に関連するソースファイルのフルパス**
+3. **影響を受けるソースコードの場所**（タグ/ブランチ/コミットまたは直接URL）
+4. **問題を再現するためのステップバイステップの手順**
+5. **概念実証またはエクスプロイトコード**（可能な場合）
+6. **問題の影響**（攻撃者がどのように悪用する可能性があるかを含む）
+7. **再現に必要な特別な設定**
 
-### Response Timeline
+### 対応タイムライン
 
-- **Initial Response**: Within 48 hours, we will acknowledge receipt of your vulnerability report
-- **Assessment**: Within 7 days, we will provide an initial assessment of the report
-- **Resolution**: We will work on fixes and keep you informed of our progress
-- **Disclosure**: We will coordinate with you on public disclosure timing
+- **初期応答**: 48時間以内に脆弱性報告の受領を確認します
+- **評価**: 7日以内に報告の初期評価を提供します
+- **解決**: 修正に取り組み、進捗状況をお知らせします
+- **開示**: 公開開示のタイミングについて調整します
 
-## Security Update Process
+## セキュリティ更新プロセス
 
-When we receive a security bug report, we will:
+セキュリティバグ報告を受け取った場合、以下を実施します：
 
-1. **Confirm** the problem and determine affected versions
-2. **Audit** code to find any similar problems
-3. **Develop** fixes for all supported versions
-4. **Release** patches as soon as possible
+1. 問題を**確認**し、影響を受けるバージョンを特定
+2. 類似の問題がないかコードを**監査**
+3. サポート対象のすべてのバージョンに対する修正を**開発**
+4. できるだけ早くパッチを**リリース**
 
-## Security-Related Configuration
+## セキュリティ関連の設定
 
-### QUIC/TLS Configuration
+### QUIC/TLS 設定
 
-Unison Protocol uses QUIC with TLS 1.3 for secure communication. Ensure you:
+Unison Protocol は安全な通信のために TLS 1.3 を使用した QUIC を採用しています。以下を確認してください：
 
-1. Use strong, properly generated certificates in production
-2. Never commit private keys to version control
-3. Rotate certificates regularly
-4. Use the provided certificate generation scripts only for development
+1. 本番環境では強力で適切に生成された証明書を使用
+2. 秘密鍵をバージョン管理にコミットしない
+3. 証明書を定期的にローテーション
+4. 提供される証明書生成スクリプトは開発用途のみに使用
 
-### Best Practices
+### ベストプラクティス
 
-When using Unison Protocol:
+Unison Protocol を使用する際は：
 
-1. **Keep Dependencies Updated**: Regularly update to the latest version
-2. **Use Secure Defaults**: Don't disable security features unless absolutely necessary
-3. **Validate Input**: Always validate and sanitize input data
-4. **Limit Exposure**: Use firewalls and network policies to limit exposure
-5. **Monitor**: Implement logging and monitoring for suspicious activities
+1. **依存関係を最新に保つ**: 定期的に最新バージョンに更新
+2. **セキュアなデフォルトを使用**: 絶対に必要でない限りセキュリティ機能を無効にしない
+3. **入力を検証**: 常に入力データを検証およびサニタイズ
+4. **露出を制限**: ファイアウォールとネットワークポリシーを使用して露出を制限
+5. **監視**: 不審な活動のログと監視を実装
 
-## Known Security Considerations
+## 既知のセキュリティ考慮事項
 
-### Development Certificates
+### 開発用証明書
 
-The project includes utilities for generating self-signed certificates for development:
-- These are located in `assets/certs/`
-- **Never use these certificates in production**
-- Always generate new certificates for production deployments
+プロジェクトには開発用の自己署名証明書を生成するユーティリティが含まれています：
+- これらは `assets/certs/` に配置されています
+- **これらの証明書を本番環境で使用しないでください**
+- 本番デプロイメントでは常に新しい証明書を生成してください
 
-### Dependencies
+### 依存関係
 
-We regularly audit our dependencies for known vulnerabilities using:
+以下を使用して依存関係の既知の脆弱性を定期的に監査しています：
 - `cargo audit`
-- GitHub's Dependabot alerts
+- GitHub の Dependabot アラート
 
-## Security Features
+## セキュリティ機能
 
-Unison Protocol includes several security features:
+Unison Protocol には複数のセキュリティ機能が含まれています：
 
-1. **TLS 1.3 Encryption**: All QUIC connections are encrypted
-2. **Certificate Validation**: Proper certificate chain validation
-3. **Input Validation**: Protocol-level message validation
-4. **Memory Safety**: Leveraging Rust's memory safety guarantees
-5. **Type Safety**: Strong typing throughout the protocol implementation
+1. **TLS 1.3 暗号化**: すべての QUIC 接続が暗号化
+2. **証明書検証**: 適切な証明書チェーン検証
+3. **入力検証**: プロトコルレベルのメッセージ検証
+4. **メモリ安全性**: Rust のメモリ安全性保証を活用
+5. **型安全性**: プロトコル実装全体での強い型付け
 
-## Disclosure Policy
+## 開示ポリシー
 
-When we discover or are made aware of security vulnerabilities:
+セキュリティ脆弱性を発見または認識した場合：
 
-1. We will promptly investigate and validate the issue
-2. Develop and test appropriate fixes
-3. Release patches for all supported versions
-4. Publish a security advisory with:
-   - Description of the vulnerability
-   - CVSS score
-   - Affected versions
-   - Patched versions
-   - Workarounds (if any)
-   - Credits to the reporter
+1. 迅速に問題を調査し検証します
+2. 適切な修正を開発しテストします
+3. サポート対象のすべてのバージョンにパッチをリリース
+4. 以下を含むセキュリティアドバイザリを公開します：
+   - 脆弱性の説明
+   - CVSS スコア
+   - 影響を受けるバージョン
+   - パッチ適用済みバージョン
+   - 回避策（ある場合）
+   - 報告者へのクレジット
 
-## Contact
+## お問い合わせ
 
-For any security-related questions or concerns:
-- **Email**: security@chronista.club
-- **GitHub Security Advisories**: [View Advisories](https://github.com/chronista-club/unison-protocol/security/advisories)
+セキュリティ関連の質問や懸念事項：
+- **メール**: security@chronista.club
+- **GitHub セキュリティアドバイザリ**: [アドバイザリを見る](https://github.com/chronista-club/unison-protocol/security/advisories)
 
-## Acknowledgments
+## 謝辞
 
-We would like to thank the following for their responsible disclosure and contribution to the security of Unison Protocol:
+責任ある開示と Unison Protocol のセキュリティへの貢献に対して、以下の方々に感謝いたします：
 
-*This list will be updated as we receive and address security reports.*
+*このリストはセキュリティ報告を受け取り対処するたびに更新されます。*
 
 ---
 
-Thank you for helping keep Unison Protocol and its users safe!
+Unison Protocol とそのユーザーの安全を守るためのご協力に感謝します！
