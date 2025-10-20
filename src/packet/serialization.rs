@@ -299,7 +299,7 @@ mod tests {
     fn test_serialize_small_packet() {
         // 圧縮閾値未満のパケット
         let mut header = UnisonPacketHeader::new(PacketType::Data);
-        let payload = StringPayload::from_str("Hello, World!");
+        let payload = StringPayload::from_string("Hello, World!");
 
         let packet = PacketSerializer::serialize(&mut header, &payload).unwrap();
 
@@ -329,7 +329,7 @@ mod tests {
             .with_stream_id(1337);
         header.checksum = 1; // チェックサムを有効化
 
-        let payload = StringPayload::from_str("Test payload data");
+        let payload = StringPayload::from_string("Test payload data");
 
         // シリアライズ
         let packet = PacketSerializer::serialize(&mut header, &payload).unwrap();
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     fn test_checksum_validation() {
         let mut header = UnisonPacketHeader::new(PacketType::Data);
-        let payload = StringPayload::from_str("Test");
+        let payload = StringPayload::from_string("Test");
 
         // チェックサムを有効にした設定でシリアライズ
         let config = PacketConfig::default().with_checksum(ChecksumConfig::enabled());

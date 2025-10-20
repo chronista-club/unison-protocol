@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn test_string_payload() {
         let text = "Hello, UnisonPacket!";
-        let payload = StringPayload::from_str(text);
+        let payload = StringPayload::from_string(text);
 
         let bytes = payload.to_bytes().unwrap();
         let restored = StringPayload::from_bytes(&bytes).unwrap();
@@ -256,10 +256,10 @@ mod tests {
 
     #[test]
     fn test_invalid_json() {
-        let result = JsonPayload::from_str("not a json");
+        let result = JsonPayload::from_json_str("not a json");
         assert!(result.is_err());
 
-        let result = JsonPayload::from_str(r#"{"valid": "json"}"#);
+        let result = JsonPayload::from_json_str(r#"{"valid": "json"}"#);
         assert!(result.is_ok());
     }
 }

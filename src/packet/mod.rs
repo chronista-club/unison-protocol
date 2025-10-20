@@ -15,7 +15,7 @@
 //! use unison_protocol::packet::{UnisonPacket, StringPayload};
 //!
 //! // パケット作成
-//! let payload = StringPayload::from_str("Hello, World!");
+//! let payload = StringPayload::from_string("Hello, World!");
 //! let packet = UnisonPacket::builder()
 //!     .with_stream_id(123)
 //!     .with_sequence(1)
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_packet_creation() {
-        let payload = StringPayload::from_str("Test packet");
+        let payload = StringPayload::from_string("Test packet");
         let packet = UnisonPacket::new(payload.clone()).unwrap();
 
         assert!(packet.size() > 48);
@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_packet_builder() {
-        let payload = StringPayload::from_str("Builder test");
+        let payload = StringPayload::from_string("Builder test");
         let packet = UnisonPacket::builder()
             .packet_type(PacketType::Control)
             .with_sequence(42)
@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_round_trip() {
-        let original = StringPayload::from_str("Round trip test");
+        let original = StringPayload::from_string("Round trip test");
         let packet = UnisonPacket::new(original.clone()).unwrap();
 
         let bytes = packet.to_bytes();
