@@ -39,7 +39,7 @@ pub use config::{ChecksumConfig, CompressionConfig, FrameConfig};
 pub use flags::FrameFlags;
 pub use header::{FrameType, UnisonFrameHeader};
 pub use payload::{
-    BytesPayload, EmptyPayload, JsonPayload, PayloadError, Payloadable, StringPayload,
+    BytesPayload, EmptyPayload, JsonPayload, PayloadError, Payloadable, RkyvPayload, StringPayload,
 };
 pub use serialization::{FrameDeserializer, FrameSerializer, SerializationError};
 

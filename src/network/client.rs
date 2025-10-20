@@ -99,12 +99,12 @@ impl ProtocolClientTrait for ProtocolClient {
         let request_id = generate_request_id();
 
         // Create the protocol message
-        let message = ProtocolMessage {
-            id: request_id,
-            method: method.to_string(),
-            msg_type: MessageType::Request,
-            payload: serde_json::to_value(request)?,
-        };
+        let message = ProtocolMessage::new_with_json(
+            request_id,
+            method.to_string(),
+            MessageType::Request,
+            serde_json::to_value(request)?,
+        )?;
 
         // Send the request
         self.transport.send(message).await?;
@@ -114,10 +114,12 @@ impl ProtocolClientTrait for ProtocolClient {
         let response = self.transport.receive().await?;
 
         if response.msg_type == MessageType::Error {
+            let payload_value = response
+                .payload_as_value()
+                .context("Failed to parse error payload")?;
             return Err(anyhow::anyhow!(
                 "Protocol error: {}",
-                response
-                    .payload
+                payload_value
                     .get("message")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Unknown error")
@@ -125,8 +127,11 @@ impl ProtocolClientTrait for ProtocolClient {
         }
 
         // Deserialize the response
+        let payload_value = response
+            .payload_as_value()
+            .context("Failed to parse response payload")?;
         let result: TResponse =
-            serde_json::from_value(response.payload).context("Failed to deserialize response")?;
+            serde_json::from_value(payload_value).context("Failed to deserialize response")?;
 
         Ok(result)
     }
@@ -144,12 +149,12 @@ impl ProtocolClientTrait for ProtocolClient {
         let request_id = generate_request_id();
 
         // Create the protocol message
-        let message = ProtocolMessage {
-            id: request_id,
-            method: method.to_string(),
-            msg_type: MessageType::Stream,
-            payload: serde_json::to_value(request)?,
-        };
+        let message = ProtocolMessage::new_with_json(
+            request_id,
+            method.to_string(),
+            MessageType::Stream,
+            serde_json::to_value(request)?,
+        )?;
 
         // Send the stream request
         self.transport.send(message).await?;
@@ -162,18 +167,24 @@ impl ProtocolClientTrait for ProtocolClient {
                     Ok(msg) => {
                         match msg.msg_type {
                             MessageType::StreamData => {
-                                match serde_json::from_value::<TResponse>(msg.payload) {
-                                    Ok(data) => yield Ok(data),
-                                    Err(e) => yield Err(anyhow::anyhow!("Deserialization error: {}", e)),
+                                match msg.payload_as_value() {
+                                    Ok(payload_value) => {
+                                        match serde_json::from_value::<TResponse>(payload_value) {
+                                            Ok(data) => yield Ok(data),
+                                            Err(e) => yield Err(anyhow::anyhow!("Deserialization error: {}", e)),
+                                        }
+                                    }
+                                    Err(e) => yield Err(anyhow::anyhow!("Failed to parse payload: {}", e)),
                                 }
                             }
                             MessageType::StreamEnd => {
                                 break;
                             }
                             MessageType::Error => {
-                                let error_msg = msg.payload.get("message")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("Unknown error");
+                                let error_msg = msg.payload_as_value()
+                                    .ok()
+                                    .and_then(|v| v.get("message").and_then(|m| m.as_str()).map(|s| s.to_string()))
+                                    .unwrap_or_else(|| "Unknown error".to_string());
                                 yield Err(anyhow::anyhow!("Stream error: {}", error_msg));
                                 break;
                             }
@@ -214,12 +225,12 @@ impl UnisonClient for ProtocolClient {
     ) -> Result<serde_json::Value, NetworkError> {
         let request_id = generate_request_id();
 
-        let message = ProtocolMessage {
-            id: request_id,
-            method: method.to_string(),
-            msg_type: MessageType::Request,
+        let message = ProtocolMessage::new_with_json(
+            request_id,
+            method.to_string(),
+            MessageType::Request,
             payload,
-        };
+        )?;
 
         self.transport
             .send(message)
@@ -233,9 +244,11 @@ impl UnisonClient for ProtocolClient {
             .map_err(|e| NetworkError::Protocol(e.to_string()))?;
 
         if response.msg_type == MessageType::Error {
+            let payload_value = response.payload_as_value().map_err(|e| {
+                NetworkError::Protocol(format!("Failed to parse error payload: {}", e))
+            })?;
             return Err(NetworkError::Protocol(
-                response
-                    .payload
+                payload_value
                     .get("message")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Unknown error")
@@ -243,7 +256,7 @@ impl UnisonClient for ProtocolClient {
             ));
         }
 
-        Ok(response.payload)
+        response.payload_as_value()
     }
 
     async fn disconnect(&mut self) -> Result<(), NetworkError> {

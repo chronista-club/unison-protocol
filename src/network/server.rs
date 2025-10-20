@@ -135,31 +135,37 @@ impl ProtocolServer {
             MessageType::Request => {
                 let handlers = self.call_handlers.read().await;
                 if let Some(handler) = handlers.get(&message.method) {
-                    match handler(message.payload).await {
-                        Ok(response) => Ok(ProtocolMessage {
-                            id: message.id,
-                            method: message.method,
-                            msg_type: MessageType::Response,
-                            payload: response,
-                        }),
-                        Err(e) => Ok(ProtocolMessage {
-                            id: message.id,
-                            method: message.method,
-                            msg_type: MessageType::Error,
-                            payload: serde_json::json!({
+                    let payload_value = message
+                        .payload_as_value()
+                        .map_err(|e| anyhow::anyhow!("Failed to parse payload: {}", e))?;
+                    match handler(payload_value).await {
+                        Ok(response) => ProtocolMessage::new_with_json(
+                            message.id,
+                            message.method,
+                            MessageType::Response,
+                            response,
+                        )
+                        .map_err(|e| anyhow::anyhow!("Failed to create response: {}", e)),
+                        Err(e) => ProtocolMessage::new_with_json(
+                            message.id,
+                            message.method,
+                            MessageType::Error,
+                            serde_json::json!({
                                 "message": e.to_string(),
                             }),
-                        }),
+                        )
+                        .map_err(|e| anyhow::anyhow!("Failed to create error response: {}", e)),
                     }
                 } else {
-                    Ok(ProtocolMessage {
-                        id: message.id,
-                        method: message.method.clone(),
-                        msg_type: MessageType::Error,
-                        payload: serde_json::json!({
+                    ProtocolMessage::new_with_json(
+                        message.id,
+                        message.method.clone(),
+                        MessageType::Error,
+                        serde_json::json!({
                             "message": format!("Method not found: {}", message.method),
                         }),
-                    })
+                    )
+                    .map_err(|e| anyhow::anyhow!("Failed to create error response: {}", e))
                 }
             }
             MessageType::Stream => {
@@ -171,31 +177,34 @@ impl ProtocolServer {
                     // 1. ストリームを開始
                     // 2. 各アイテムに対してStreamDataメッセージを送信
                     // 3. 完了時にStreamEndを送信
-                    Ok(ProtocolMessage {
-                        id: message.id,
-                        method: message.method,
-                        msg_type: MessageType::StreamEnd,
-                        payload: serde_json::json!({}),
-                    })
+                    ProtocolMessage::new_with_json(
+                        message.id,
+                        message.method,
+                        MessageType::StreamEnd,
+                        serde_json::json!({}),
+                    )
+                    .map_err(|e| anyhow::anyhow!("Failed to create stream end message: {}", e))
                 } else {
-                    Ok(ProtocolMessage {
-                        id: message.id,
-                        method: message.method.clone(),
-                        msg_type: MessageType::Error,
-                        payload: serde_json::json!({
+                    ProtocolMessage::new_with_json(
+                        message.id,
+                        message.method.clone(),
+                        MessageType::Error,
+                        serde_json::json!({
                             "message": format!("Stream method not found: {}", message.method),
                         }),
-                    })
+                    )
+                    .map_err(|e| anyhow::anyhow!("Failed to create error message: {}", e))
                 }
             }
-            _ => Ok(ProtocolMessage {
-                id: message.id,
-                method: message.method,
-                msg_type: MessageType::Error,
-                payload: serde_json::json!({
+            _ => ProtocolMessage::new_with_json(
+                message.id,
+                message.method,
+                MessageType::Error,
+                serde_json::json!({
                     "message": "Invalid message type",
                 }),
-            }),
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to create error message: {}", e)),
         }
     }
 }
@@ -346,7 +355,7 @@ impl UnisonServerExt for ProtocolServer {
 
 /// ProtocolServerのサービス管理拡張
 impl ProtocolServer {
-    /// 自動起動でサービスを登録  
+    /// 自動起動でサービスを登録
     pub async fn register_and_start_service(
         &self,
         mut service: crate::network::service::UnisonService,

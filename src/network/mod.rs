@@ -1,10 +1,11 @@
 use anyhow::Result;
 use futures_util::Stream;
+use rkyv::{Archive, Deserialize as RkyvDeserialize, Serialize as RkyvSerialize};
 use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 use thiserror::Error;
 
-use crate::frame::{JsonPayload, SerializationError, UnisonFrame};
+use crate::frame::{RkyvPayload, SerializationError, UnisonFrame};
 
 pub mod client;
 pub mod quic;
@@ -42,36 +43,67 @@ pub enum NetworkError {
 }
 
 /// プロトコルメッセージラッパー
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Archive, RkyvSerialize, RkyvDeserialize)]
+#[archive(check_bytes)]
 pub struct ProtocolMessage {
     pub id: u64,
     pub method: String,
     #[serde(rename = "type")]
     pub msg_type: MessageType,
-    pub payload: serde_json::Value,
+    pub payload: String, // JSON文字列として保持してrkyv互換に
 }
 
 /// フレームでラップされたプロトコルメッセージの型エイリアス
-pub type ProtocolFrame = UnisonFrame<JsonPayload>;
+pub type ProtocolFrame = UnisonFrame<RkyvPayload<ProtocolMessage>>;
 
 impl ProtocolMessage {
     /// ProtocolMessageをフレームに変換
     pub fn into_frame(self) -> Result<ProtocolFrame, SerializationError> {
-        let json_value = serde_json::to_value(&self)?;
-        let payload = JsonPayload::new(json_value)?;
+        let payload = RkyvPayload::new(self);
         UnisonFrame::new(payload)
     }
 
     /// フレームからProtocolMessageを復元
     pub fn from_frame(frame: &ProtocolFrame) -> Result<Self, SerializationError> {
         let payload = frame.payload()?;
-        let json_value = payload.to_value()?;
-        Ok(serde_json::from_value(json_value)?)
+        Ok(payload.data.clone())
+    }
+
+    /// JSON文字列からprotocolメッセージを作成
+    pub fn new_with_json(
+        id: u64,
+        method: String,
+        msg_type: MessageType,
+        payload: serde_json::Value,
+    ) -> Result<Self, NetworkError> {
+        Ok(Self {
+            id,
+            method,
+            msg_type,
+            payload: serde_json::to_string(&payload)?,
+        })
+    }
+
+    /// payloadをserde_json::Valueとして取得
+    pub fn payload_as_value(&self) -> Result<serde_json::Value, NetworkError> {
+        Ok(serde_json::from_str(&self.payload)?)
     }
 }
 
 /// メッセージ種別
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Archive,
+    RkyvSerialize,
+    RkyvDeserialize,
+)]
+#[archive(check_bytes)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageType {
     Request,

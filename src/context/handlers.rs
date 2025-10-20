@@ -186,7 +186,8 @@ impl MessageDispatcher for HandlerRegistry {
         let handlers = self.handlers.read().await;
 
         if let Some(handler) = handlers.get(&message.method) {
-            handler.handle(message.payload).await
+            let payload_value = message.payload_as_value()?;
+            handler.handle(payload_value).await
         } else {
             Err(NetworkError::HandlerNotFound {
                 method: message.method.clone(),

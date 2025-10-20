@@ -169,6 +169,35 @@ impl Payloadable for EmptyPayload {
     }
 }
 
+/// rkyv直接シリアライズペイロードラッパー
+///
+/// Archive + Serialize + Deserialize を実装した任意の型をペイロードとして使用できます。
+#[derive(Archive, Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[archive(check_bytes)]
+pub struct RkyvPayload<T>
+where
+    T: Archive + Serialize<AllocSerializer<256>>,
+{
+    pub data: T,
+}
+
+impl<T> RkyvPayload<T>
+where
+    T: Archive + Serialize<AllocSerializer<256>>,
+{
+    pub fn new(data: T) -> Self {
+        Self { data }
+    }
+}
+
+impl<T> Payloadable for RkyvPayload<T>
+where
+    T: Archive + Serialize<AllocSerializer<256>>,
+    T::Archived: Deserialize<T, rkyv::Infallible>,
+    for<'a> T::Archived: CheckBytes<DefaultValidator<'a>>,
+{
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

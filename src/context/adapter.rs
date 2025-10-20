@@ -161,17 +161,17 @@ where
 
     /// CGPコンテキストを使ったメッセージ送信
     pub async fn send_message(&self, method: &str, payload: Value) -> Result<Value, NetworkError> {
-        let message = ProtocolMessage {
-            id: generate_id(),
-            method: method.to_string(),
-            msg_type: MessageType::Request,
+        let message = ProtocolMessage::new_with_json(
+            generate_id(),
+            method.to_string(),
+            MessageType::Request,
             payload,
-        };
+        )?;
 
         self.context.transport().send(message.clone()).await?;
         let response = self.context.transport().receive().await?;
 
-        Ok(response.payload)
+        response.payload_as_value()
     }
 }
 
