@@ -68,6 +68,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.rust }}-cargo-build-target-
 
+      - name: Set macOS-specific build flags
+        if: runner.os == 'macOS'
+        run: |
+          echo "RUSTFLAGS=-C symbol-mangling-version=v0" >> $GITHUB_ENV
+
       - name: Run cargo check
         run: cargo check --all-features
 
