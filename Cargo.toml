@@ -96,3 +96,11 @@ harness = false
 [[bench]]
 name = "throughput"
 harness = false
+
+# Profile settings to fix macOS linker symbol length issue
+# This is needed when lld is not available (e.g., in CI)
+[profile.dev]
+split-debuginfo = "unpacked"
+
+[profile.test]
+split-debuginfo = "unpacked"
