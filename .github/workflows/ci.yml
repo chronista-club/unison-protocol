@@ -76,7 +76,8 @@ jobs:
       - name: Set Windows-specific build flags
         if: runner.os == 'Windows'
         run: |
-          echo "RUSTFLAGS=-C debuginfo=0" >> $env:GITHUB_ENV
+          echo "CARGO_PROFILE_DEV_DEBUG=0" >> $env:GITHUB_ENV
+          echo "CARGO_PROFILE_TEST_DEBUG=0" >> $env:GITHUB_ENV
 
       - name: Run cargo check
         run: cargo check --all-features
