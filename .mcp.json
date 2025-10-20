@@ -7,10 +7,10 @@
         "--from",
         "git+https://github.com/oraios/serena",
         "serena-mcp-server",
+        "--enable-web-dashboard",
+        "false",
         "--project",
-        "/Users/makoto/repos/vantage-hub",
-        "--context",
-        "ide-assistant"
+        "$(pwd)"
       ]
     },
     "SurrealDB": {

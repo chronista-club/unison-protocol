@@ -53,8 +53,8 @@ pub mod parser;
 // プロトコル定義のコアモジュール
 pub mod core;
 
-// パケット層モジュール
-pub mod packet;
+// フレーム層モジュール
+pub mod frame;
 
 // CGPベースのコンテキストモジュール
 pub mod context;

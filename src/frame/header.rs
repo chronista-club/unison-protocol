@@ -1,17 +1,17 @@
-//! パケットヘッダーの定義
+//! フレームヘッダーの定義
 //!
-//! UnisonPacketのヘッダー構造を定義します。
+//! UnisonFrameのヘッダー構造を定義します。
 //! rkyvによるゼロコピーシリアライゼーションをサポートします。
 
-use super::flags::PacketFlags;
+use super::flags::FrameFlags;
 use rkyv::{Archive, Deserialize, Serialize};
 
-/// パケットタイプを定義する列挙型
+/// フレームタイプを定義する列挙型
 #[derive(Archive, Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[archive(check_bytes)]
 #[repr(u8)]
-pub enum PacketType {
-    /// 通常のデータパケット
+pub enum FrameType {
+    /// 通常のデータフレーム
     Data = 0x00,
     /// 制御メッセージ
     Control = 0x01,
@@ -23,7 +23,7 @@ pub enum PacketType {
     Custom(u8),
 }
 
-impl From<u8> for PacketType {
+impl From<u8> for FrameType {
     fn from(value: u8) -> Self {
         match value {
             0x00 => Self::Data,
@@ -35,31 +35,31 @@ impl From<u8> for PacketType {
     }
 }
 
-impl From<PacketType> for u8 {
-    fn from(pt: PacketType) -> Self {
+impl From<FrameType> for u8 {
+    fn from(pt: FrameType) -> Self {
         match pt {
-            PacketType::Data => 0x00,
-            PacketType::Control => 0x01,
-            PacketType::Heartbeat => 0x02,
-            PacketType::Handshake => 0x03,
-            PacketType::Custom(v) => v,
+            FrameType::Data => 0x00,
+            FrameType::Control => 0x01,
+            FrameType::Heartbeat => 0x02,
+            FrameType::Handshake => 0x03,
+            FrameType::Custom(v) => v,
         }
     }
 }
 
-/// UnisonPacketのヘッダー構造
+/// UnisonFrameのヘッダー構造
 ///
 /// 固定長48バイトのヘッダーで、パケットのメタデータを格納します。
 #[derive(Archive, Deserialize, Serialize, Debug, Clone)]
 #[archive(check_bytes)]
-pub struct UnisonPacketHeader {
+pub struct UnisonFrameHeader {
     /// プロトコルバージョン（現在: 0x01）
     pub version: u8,
 
-    /// パケットタイプ
+    /// フレームタイプ
     pub packet_type: u8,
 
-    /// ビットフラグ（PacketFlags）
+    /// ビットフラグ（FrameFlags）
     pub flags: u16,
 
     /// 圧縮前のペイロード長（バイト）
@@ -85,12 +85,12 @@ pub struct UnisonPacketHeader {
     pub _padding: [u8; 8],
 }
 
-impl UnisonPacketHeader {
+impl UnisonFrameHeader {
     /// 現在のプロトコルバージョン
     pub const CURRENT_VERSION: u8 = 0x01;
 
     /// 新しいヘッダーを作成
-    pub fn new(packet_type: PacketType) -> Self {
+    pub fn new(packet_type: FrameType) -> Self {
         Self {
             version: Self::CURRENT_VERSION,
             packet_type: packet_type.into(),
@@ -108,23 +108,23 @@ impl UnisonPacketHeader {
         }
     }
 
-    /// パケットタイプを取得
-    pub fn packet_type(&self) -> PacketType {
-        PacketType::from(self.packet_type)
+    /// フレームタイプを取得
+    pub fn packet_type(&self) -> FrameType {
+        FrameType::from(self.packet_type)
     }
 
-    /// パケットタイプを設定
-    pub fn set_packet_type(&mut self, packet_type: PacketType) {
+    /// フレームタイプを設定
+    pub fn set_packet_type(&mut self, packet_type: FrameType) {
         self.packet_type = packet_type.into();
     }
 
     /// フラグを取得
-    pub fn flags(&self) -> PacketFlags {
-        PacketFlags::from(self.flags)
+    pub fn flags(&self) -> FrameFlags {
+        FrameFlags::from(self.flags)
     }
 
     /// フラグを設定
-    pub fn set_flags(&mut self, flags: PacketFlags) {
+    pub fn set_flags(&mut self, flags: FrameFlags) {
         self.flags = flags.into();
     }
 
@@ -179,9 +179,9 @@ impl UnisonPacketHeader {
     }
 }
 
-impl Default for UnisonPacketHeader {
+impl Default for UnisonFrameHeader {
     fn default() -> Self {
-        Self::new(PacketType::Data)
+        Self::new(FrameType::Data)
     }
 }
 
@@ -191,9 +191,9 @@ mod tests {
 
     #[test]
     fn test_header_creation() {
-        let header = UnisonPacketHeader::new(PacketType::Data);
-        assert_eq!(header.version, UnisonPacketHeader::CURRENT_VERSION);
-        assert_eq!(header.packet_type(), PacketType::Data);
+        let header = UnisonFrameHeader::new(FrameType::Data);
+        assert_eq!(header.version, UnisonFrameHeader::CURRENT_VERSION);
+        assert_eq!(header.packet_type(), FrameType::Data);
         assert_eq!(header.payload_length, 0);
         assert_eq!(header.compressed_length, 0);
         assert!(!header.is_compressed());
@@ -202,24 +202,24 @@ mod tests {
 
     #[test]
     fn test_packet_type_conversion() {
-        assert_eq!(u8::from(PacketType::Data), 0x00);
-        assert_eq!(u8::from(PacketType::Control), 0x01);
-        assert_eq!(u8::from(PacketType::Heartbeat), 0x02);
-        assert_eq!(u8::from(PacketType::Handshake), 0x03);
-        assert_eq!(u8::from(PacketType::Custom(0xFF)), 0xFF);
+        assert_eq!(u8::from(FrameType::Data), 0x00);
+        assert_eq!(u8::from(FrameType::Control), 0x01);
+        assert_eq!(u8::from(FrameType::Heartbeat), 0x02);
+        assert_eq!(u8::from(FrameType::Handshake), 0x03);
+        assert_eq!(u8::from(FrameType::Custom(0xFF)), 0xFF);
 
-        assert_eq!(PacketType::from(0x00), PacketType::Data);
-        assert_eq!(PacketType::from(0x01), PacketType::Control);
-        assert_eq!(PacketType::from(0x02), PacketType::Heartbeat);
-        assert_eq!(PacketType::from(0x03), PacketType::Handshake);
-        assert_eq!(PacketType::from(0xFF), PacketType::Custom(0xFF));
+        assert_eq!(FrameType::from(0x00), FrameType::Data);
+        assert_eq!(FrameType::from(0x01), FrameType::Control);
+        assert_eq!(FrameType::from(0x02), FrameType::Heartbeat);
+        assert_eq!(FrameType::from(0x03), FrameType::Handshake);
+        assert_eq!(FrameType::from(0xFF), FrameType::Custom(0xFF));
     }
 
     #[test]
     fn test_flags_integration() {
-        let mut header = UnisonPacketHeader::new(PacketType::Data);
-        let mut flags = PacketFlags::new();
-        flags.set(PacketFlags::COMPRESSED | PacketFlags::PRIORITY_HIGH);
+        let mut header = UnisonFrameHeader::new(FrameType::Data);
+        let mut flags = FrameFlags::new();
+        flags.set(FrameFlags::COMPRESSED | FrameFlags::PRIORITY_HIGH);
 
         header.set_flags(flags);
         assert_eq!(header.flags().bits(), flags.bits());
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_builder_pattern() {
-        let header = UnisonPacketHeader::new(PacketType::Control)
+        let header = UnisonFrameHeader::new(FrameType::Control)
             .with_sequence(42)
             .with_stream_id(1337)
             .with_checksum(0xDEADBEEF);
@@ -242,13 +242,13 @@ mod tests {
 
     #[test]
     fn test_actual_payload_size() {
-        let mut header = UnisonPacketHeader::new(PacketType::Data);
+        let mut header = UnisonFrameHeader::new(FrameType::Data);
         header.payload_length = 1000;
         assert_eq!(header.actual_payload_size(), 1000);
 
         header.compressed_length = 500;
-        let mut flags = PacketFlags::new();
-        flags.set(PacketFlags::COMPRESSED);
+        let mut flags = FrameFlags::new();
+        flags.set(FrameFlags::COMPRESSED);
         header.set_flags(flags);
         assert_eq!(header.actual_payload_size(), 500);
     }
@@ -257,7 +257,7 @@ mod tests {
     fn test_header_size() {
         // ヘッダーサイズが48バイトであることを確認
         use std::mem::size_of;
-        let header_size = size_of::<UnisonPacketHeader>();
+        let header_size = size_of::<UnisonFrameHeader>();
         assert_eq!(header_size, 48, "Header size should be exactly 48 bytes");
     }
 }
