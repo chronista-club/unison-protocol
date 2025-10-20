@@ -73,6 +73,11 @@ jobs:
         run: |
           echo "RUSTFLAGS=-C symbol-mangling-version=v0" >> $GITHUB_ENV
 
+      - name: Set Windows-specific build flags
+        if: runner.os == 'Windows'
+        run: |
+          echo "RUSTFLAGS=-C debuginfo=0" >> $env:GITHUB_ENV
+
       - name: Run cargo check
         run: cargo check --all-features
 
