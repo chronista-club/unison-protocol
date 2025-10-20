@@ -101,6 +101,8 @@ harness = false
 # This is needed when lld is not available (e.g., in CI)
 [profile.dev]
 split-debuginfo = "unpacked"
+codegen-units = 256  # Reduce PDB file size on Windows
 
 [profile.test]
 split-debuginfo = "unpacked"
+codegen-units = 256  # Reduce PDB file size on Windows
