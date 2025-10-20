@@ -215,6 +215,12 @@ pub struct UnisonContextBuilder<T, R, H> {
     handler: Option<H>,
 }
 
+impl<T, R, H> Default for UnisonContextBuilder<T, R, H> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, R, H> UnisonContextBuilder<T, R, H> {
     pub fn new() -> Self {
         Self {

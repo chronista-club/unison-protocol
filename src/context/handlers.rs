@@ -105,6 +105,12 @@ pub struct CompositeHandler {
     handlers: Vec<Box<dyn Handler>>,
 }
 
+impl Default for CompositeHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CompositeHandler {
     pub fn new() -> Self {
         Self {
@@ -142,6 +148,12 @@ impl Handler for CompositeHandler {
 // ========================================
 // Handler Registry Implementation
 // ========================================
+
+impl Default for HandlerRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl HandlerRegistry {
     pub fn new() -> Self {

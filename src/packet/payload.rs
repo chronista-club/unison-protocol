@@ -111,7 +111,7 @@ impl StringPayload {
         Self { data }
     }
 
-    pub fn from_str(data: &str) -> Self {
+    pub fn from_string(data: &str) -> Self {
         Self {
             data: data.to_string(),
         }
@@ -137,7 +137,7 @@ impl JsonPayload {
         Ok(Self { json_str })
     }
 
-    pub fn from_str(json_str: &str) -> Result<Self, PayloadError> {
+    pub fn from_json_str(json_str: &str) -> Result<Self, PayloadError> {
         // JSONの妥当性を検証
         serde_json::from_str::<serde_json::Value>(json_str)
             .map_err(|_| PayloadError::InvalidData)?;

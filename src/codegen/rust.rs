@@ -8,6 +8,7 @@ use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
+#[derive(Default)]
 pub struct RustGenerator;
 
 impl RustGenerator {
@@ -162,6 +163,7 @@ impl RustGenerator {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn field_type_to_rust(
         &self,
         field_type: &FieldType,

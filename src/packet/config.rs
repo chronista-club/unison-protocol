@@ -89,7 +89,7 @@ impl Default for CompressionConfig {
 }
 
 /// チェックサムに関する設定
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct ChecksumConfig {
     /// チェックサムを有効にするかどうか
     pub enabled: bool,
@@ -123,15 +123,6 @@ impl ChecksumConfig {
 
     /// チェックサムを無効化
     pub fn disabled() -> Self {
-        Self {
-            enabled: false,
-            required: false,
-        }
-    }
-}
-
-impl Default for ChecksumConfig {
-    fn default() -> Self {
         Self {
             enabled: false,
             required: false,

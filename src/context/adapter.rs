@@ -84,6 +84,12 @@ pub struct ServiceRegistryAdapter {
         Arc<RwLock<std::collections::HashMap<String, Arc<crate::network::service::UnisonService>>>>,
 }
 
+impl Default for ServiceRegistryAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ServiceRegistryAdapter {
     pub fn new() -> Self {
         Self {
@@ -177,6 +183,12 @@ where
 pub struct CgpEnhancedServer {
     handler_registry: HandlerRegistry,
     legacy_server: Option<Arc<ProtocolServer>>,
+}
+
+impl Default for CgpEnhancedServer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CgpEnhancedServer {
@@ -278,7 +290,7 @@ impl MigrationHelper {
         CgpEnhancedClient::new(context).with_legacy(client)
     }
 
-    /// ProtocolServerをCGPサーバーに変換  
+    /// ProtocolServerをCGPサーバーに変換
     pub async fn migrate_server(server: Arc<ProtocolServer>) -> CgpEnhancedServer {
         let cgp_server = CgpEnhancedServer::new().with_legacy(server.clone());
 

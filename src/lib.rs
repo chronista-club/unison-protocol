@@ -129,7 +129,7 @@ impl UnisonProtocol {
 
     /// 新しいUnisonクライアントを作成
     pub fn create_client(&self) -> Result<ProtocolClient, anyhow::Error> {
-        Ok(ProtocolClient::new_default()?)
+        ProtocolClient::new_default()
     }
 
     /// 新しいUnisonサーバーを作成

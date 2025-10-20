@@ -280,7 +280,7 @@ impl UnisonClientExt for ProtocolClient {
 
         // QUICクライアントの接続を取得してUnisonStreamを作成
         // 現在の実装では直接アクセスできないため、エラーを返す
-        return Err(NetworkError::NotConnected);
+        Err(NetworkError::NotConnected)
     }
 
     async fn list_system_streams(&self) -> Result<Vec<super::StreamHandle>, NetworkError> {

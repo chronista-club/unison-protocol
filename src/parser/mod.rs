@@ -24,6 +24,7 @@ pub enum ParseError {
 
 /// Main schema parser for KDL protocol definitions
 pub struct SchemaParser {
+    #[allow(dead_code)]
     type_registry: TypeRegistry,
 }
 

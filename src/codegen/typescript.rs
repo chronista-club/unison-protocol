@@ -6,6 +6,7 @@ use crate::parser::{
 use anyhow::Result;
 use convert_case::{Case, Casing};
 
+#[derive(Default)]
 pub struct TypeScriptGenerator;
 
 impl TypeScriptGenerator {
@@ -20,7 +21,7 @@ impl CodeGenerator for TypeScriptGenerator {
 
         // インポート文を追加
         code.push_str(&self.generate_imports());
-        code.push_str("\n");
+        code.push('\n');
 
         // 列挙型を生成
         for enum_def in &schema.enums {
@@ -148,6 +149,7 @@ export type LanguageCode = string; // ISO 639-1 format
         field_def
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn field_type_to_typescript(
         &self,
         field_type: &FieldType,

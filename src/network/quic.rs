@@ -34,6 +34,7 @@ struct EmbeddedCerts;
 
 /// QUIC client implementation
 pub struct QuicClient {
+    #[allow(dead_code)]
     endpoint: Option<Endpoint>,
     connection: Arc<RwLock<Option<Connection>>>,
     rx: Arc<RwLock<Option<mpsc::UnboundedReceiver<ProtocolMessage>>>>,
@@ -111,9 +112,8 @@ impl QuicClient {
             // IPv6アドレスにデフォルトポートを追加
             let addr_with_brackets = format!("[{}]:{}", addr, DEFAULT_PORT);
             if let Ok(socket_addr) = addr_with_brackets.parse::<SocketAddr>() {
-                match socket_addr {
-                    SocketAddr::V6(_) => return Ok(socket_addr),
-                    _ => {}
+                if let SocketAddr::V6(_) = socket_addr {
+                    return Ok(socket_addr);
                 }
             }
         }
@@ -124,8 +124,8 @@ impl QuicClient {
         }
 
         // "localhost:port"形式の場合はIPv6ループバックを使用
-        if addr.starts_with("localhost:") {
-            if let Ok(port) = addr[10..].parse::<u16>() {
+        if let Some(stripped) = addr.strip_prefix("localhost:") {
+            if let Ok(port) = stripped.parse::<u16>() {
                 return Ok(SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], port)));
             }
         }
@@ -255,7 +255,7 @@ impl QuicClient {
     pub async fn is_connected(&self) -> bool {
         let connection_guard = self.connection.read().await;
         if let Some(connection) = connection_guard.as_ref() {
-            !connection.close_reason().is_some()
+            connection.close_reason().is_none()
         } else {
             false
         }
@@ -306,7 +306,7 @@ impl QuicServer {
         let cert_chain = rustls_pemfile::certs(&mut cert_pem.as_bytes())
             .collect::<Result<Vec<_>, _>>()
             .context("Failed to parse certificate")?;
-        let certs = cert_chain.into_iter().map(CertificateDer::from).collect();
+        let certs = cert_chain;
 
         // Convert to owned data for static lifetime
         let key_der_owned = key_der.clone();
@@ -329,7 +329,7 @@ impl QuicServer {
         let cert_chain = rustls_pemfile::certs(&mut cert_pem.as_bytes())
             .collect::<Result<Vec<_>, _>>()
             .context("Failed to parse embedded certificate")?;
-        let certs = cert_chain.into_iter().map(CertificateDer::from).collect();
+        let certs = cert_chain;
 
         // Load private key (already in DER format) - clone to own the data
         let key_data_owned = key_data.data.to_vec();
@@ -431,9 +431,8 @@ impl QuicServer {
             // IPv6アドレスにポートを追加
             let addr_with_brackets = format!("[{}]:{}", addr, DEFAULT_PORT);
             if let Ok(socket_addr) = addr_with_brackets.parse::<SocketAddr>() {
-                match socket_addr {
-                    SocketAddr::V6(_) => return Ok(socket_addr),
-                    _ => {}
+                if let SocketAddr::V6(_) = socket_addr {
+                    return Ok(socket_addr);
                 }
             }
         }
@@ -716,6 +715,7 @@ impl rustls::client::danger::ServerCertVerifier for SkipServerVerification {
 pub struct UnisonStream {
     stream_id: u64,
     method: String,
+    #[allow(dead_code)]
     connection: Arc<Connection>,
     send_stream: Arc<Mutex<Option<SendStream>>>,
     recv_stream: Arc<Mutex<Option<RecvStream>>>,
@@ -795,7 +795,7 @@ impl SystemStream for UnisonStream {
             payload: data,
         };
 
-        let json_data = serde_json::to_vec(&message).map_err(|e| NetworkError::Serialization(e))?;
+        let json_data = serde_json::to_vec(&message).map_err(NetworkError::Serialization)?;
 
         let mut send_guard = self.send_stream.lock().await;
         if let Some(send_stream) = send_guard.as_mut() {
@@ -829,7 +829,7 @@ impl SystemStream for UnisonStream {
             }
 
             let message: ProtocolMessage =
-                serde_json::from_slice(&data).map_err(|e| NetworkError::Serialization(e))?;
+                serde_json::from_slice(&data).map_err(NetworkError::Serialization)?;
 
             match message.msg_type {
                 MessageType::StreamReceive | MessageType::StreamData => Ok(message.payload),
