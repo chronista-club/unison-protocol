@@ -5,6 +5,45 @@
 フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づいており、
 このプロジェクトは [セマンティックバージョニング](https://semver.org/lang/ja/) に準拠しています。
 
+## [0.1.0-alpha3] - 2025-10-21
+
+### 追加
+- 新しい`frame`モジュールの実装
+  - `UnisonFrame`構造体でヘッダー、ペイロード、フラグ、設定を統合管理
+  - `RkyvPayload`によるゼロコピーシリアライゼーション
+  - Zstd圧縮とCRC32チェックサム機能
+  - フレームベースの通信プロトコル
+- `AI_CONTEXT.md`を追加してプロジェクトコンテキストを整理
+- `docs/ja/packet.md`を追加してパケット仕様を文書化
+
+### 変更
+- パーサーをknuffelに完全移行
+  - KDLスキーマパーシングをknuffelベースに統一
+  - インラインメソッド定義をサポート（`MethodMessage`型）
+- ネットワーク層を`UnisonFrame<RkyvPayload<ProtocolMessage>>`を使用するように統合
+- `packetモジュールをframeモジュールにリネーム
+- テストコードを`new_with_json()`メソッドに統一
+- WebSocketモジュールを削除（QUICに集中）
+
+### 改善
+- CI/CDの強化
+  - Windows環境でのPDB制限エラーを回避（codegen-units増加）
+  - macOS環境でのリンカーシンボル長制限に対応
+  - Clippy警告を修正してCI通過を実現
+- ドキュメント整理
+  - 英語版ドキュメントを削除して日本語版に集約
+  - 不要なファイルを削除（CONTRIBUTING.ja.md、SECURITY.ja.md等）
+- 依存関係の更新
+  - MSRV（Minimum Supported Rust Version）を1.85に更新
+  - `cargo-deny` 0.18フォーマットに対応
+  - knuffelをフォーク版（chronista-club/knuffel）に変更
+
+### 修正
+- パケットビルダーでチェックサムが正しく有効化されるように修正
+- CI環境でのリンカーエラーを修正
+- フォーマットとベンチマークのAPIミスマッチを修正
+- スキーマパーステストを簡略化
+
 ## [0.1.0] - 2025-01-05
 
 ### 追加
