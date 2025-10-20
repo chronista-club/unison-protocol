@@ -44,6 +44,9 @@ pub enum SerializationError {
 
     #[error("Deserialization failed: {0}")]
     DeserializationFailed(String),
+
+    #[error("JSON serialization error: {0}")]
+    JsonError(#[from] serde_json::Error),
 }
 
 /// フレームのシリアライゼーション処理

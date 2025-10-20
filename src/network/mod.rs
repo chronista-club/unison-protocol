@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 use thiserror::Error;
 
+use crate::frame::{JsonPayload, SerializationError, UnisonFrame};
+
 pub mod client;
 pub mod quic;
 pub mod server;
@@ -25,6 +27,8 @@ pub enum NetworkError {
     Protocol(String),
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+    #[error("Frame serialization error: {0}")]
+    FrameSerialization(#[from] SerializationError),
     #[error("QUIC error: {0}")]
     Quic(String),
     #[error("Timeout error")]
@@ -45,6 +49,25 @@ pub struct ProtocolMessage {
     #[serde(rename = "type")]
     pub msg_type: MessageType,
     pub payload: serde_json::Value,
+}
+
+/// フレームでラップされたプロトコルメッセージの型エイリアス
+pub type ProtocolFrame = UnisonFrame<JsonPayload>;
+
+impl ProtocolMessage {
+    /// ProtocolMessageをフレームに変換
+    pub fn into_frame(self) -> Result<ProtocolFrame, SerializationError> {
+        let json_value = serde_json::to_value(&self)?;
+        let payload = JsonPayload::new(json_value)?;
+        UnisonFrame::new(payload)
+    }
+
+    /// フレームからProtocolMessageを復元
+    pub fn from_frame(frame: &ProtocolFrame) -> Result<Self, SerializationError> {
+        let payload = frame.payload()?;
+        let json_value = payload.to_value()?;
+        Ok(serde_json::from_value(json_value)?)
+    }
 }
 
 /// メッセージ種別

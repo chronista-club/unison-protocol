@@ -14,8 +14,8 @@ use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing::{error, info, warn};
 
 use super::{
-    MessageType, NetworkError, ProtocolMessage, ProtocolServerTrait, StreamHandle, SystemStream,
-    server::ProtocolServer,
+    MessageType, NetworkError, ProtocolFrame, ProtocolMessage, ProtocolServerTrait, StreamHandle,
+    SystemStream, server::ProtocolServer,
 };
 
 /// Default certificate file paths for assets/certs directory
@@ -168,10 +168,11 @@ impl QuicClient {
                 .await
                 .context("Failed to open bidirectional QUIC stream")?;
 
-            // リクエストを送信
-            let json = serde_json::to_vec(&message)?;
+            // リクエストをフレームに変換して送信
+            let frame = message.into_frame().context("Failed to create frame")?;
+            let frame_bytes = frame.to_bytes();
             send_stream
-                .write_all(&json)
+                .write_all(&frame_bytes)
                 .await
                 .context("Failed to write to QUIC stream")?;
             send_stream
@@ -183,8 +184,12 @@ impl QuicClient {
             let task = tokio::spawn(async move {
                 match recv_stream.read_to_end(MAX_MESSAGE_SIZE).await {
                     Ok(data) => {
-                        if let Ok(response) = serde_json::from_slice::<ProtocolMessage>(&data) {
-                            let _ = tx.send(response);
+                        // フレームからProtocolMessageを復元
+                        let frame_bytes = bytes::Bytes::from(data);
+                        if let Ok(frame) = ProtocolFrame::from_bytes(&frame_bytes) {
+                            if let Ok(response) = ProtocolMessage::from_frame(&frame) {
+                                let _ = tx.send(response);
+                            }
                         }
                     }
                     Err(e) => {
@@ -507,7 +512,13 @@ async fn handle_connection(connection: Connection, server: Arc<ProtocolServer>) 
                 tokio::spawn(async move {
                     match recv_stream.read_to_end(MAX_MESSAGE_SIZE).await {
                         Ok(data) => {
-                            match serde_json::from_slice::<ProtocolMessage>(&data) {
+                            // フレームからProtocolMessageを復元
+                            let frame_bytes = bytes::Bytes::from(data);
+                            let frame_result = ProtocolFrame::from_bytes(&frame_bytes);
+                            let request_result =
+                                frame_result.and_then(|frame| ProtocolMessage::from_frame(&frame));
+
+                            match request_result {
                                 Ok(request) => {
                                     // Process the message based on its type
                                     match request.msg_type {
@@ -533,13 +544,22 @@ async fn handle_connection(connection: Connection, server: Arc<ProtocolServer>) 
                                                 },
                                             };
 
-                                            // 双方向ストリームの送信側を使ってレスポンスを送信
-                                            let response_data =
-                                                serde_json::to_vec(&response_msg).unwrap();
-                                            if let Err(e) =
-                                                send_stream.write_all(&response_data).await
-                                            {
-                                                error!("Failed to send response: {}", e);
+                                            // 双方向ストリームの送信側を使ってレスポンスをフレームとして送信
+                                            match response_msg.into_frame() {
+                                                Ok(frame) => {
+                                                    let frame_bytes = frame.to_bytes();
+                                                    if let Err(e) =
+                                                        send_stream.write_all(&frame_bytes).await
+                                                    {
+                                                        error!("Failed to send response: {}", e);
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    error!(
+                                                        "Failed to create response frame: {}",
+                                                        e
+                                                    );
+                                                }
                                             }
                                             let _ = send_stream.finish();
                                         }
@@ -651,8 +671,10 @@ async fn handle_connection(connection: Connection, server: Arc<ProtocolServer>) 
 async fn send_response(connection: Connection, message: ProtocolMessage) -> Result<()> {
     // 双方向ストリームを使用（レスポンスチャンネルは使わないが、プロトコルの一貫性のため）
     let (mut send_stream, _recv_stream) = connection.open_bi().await?;
-    let data = serde_json::to_vec(&message)?;
-    send_stream.write_all(&data).await?;
+    // ProtocolMessageをフレームに変換して送信
+    let frame = message.into_frame()?;
+    let frame_bytes = frame.to_bytes();
+    send_stream.write_all(&frame_bytes).await?;
     send_stream.finish()?;
     Ok(())
 }
@@ -795,12 +817,14 @@ impl SystemStream for UnisonStream {
             payload: data,
         };
 
-        let json_data = serde_json::to_vec(&message).map_err(NetworkError::Serialization)?;
+        // ProtocolMessageをフレームに変換
+        let frame = message.into_frame()?;
+        let frame_bytes = frame.to_bytes();
 
         let mut send_guard = self.send_stream.lock().await;
         if let Some(send_stream) = send_guard.as_mut() {
             send_stream
-                .write_all(&json_data)
+                .write_all(&frame_bytes)
                 .await
                 .map_err(|e| NetworkError::Quic(format!("Failed to send data: {}", e)))?;
             Ok(())
@@ -828,8 +852,10 @@ impl SystemStream for UnisonStream {
                 return Err(NetworkError::Connection("Stream ended".to_string()));
             }
 
-            let message: ProtocolMessage =
-                serde_json::from_slice(&data).map_err(NetworkError::Serialization)?;
+            // BytesからフレームをデシリアライズしてProtocolMessageを復元
+            let frame_bytes = bytes::Bytes::from(data);
+            let frame = ProtocolFrame::from_bytes(&frame_bytes)?;
+            let message = ProtocolMessage::from_frame(&frame)?;
 
             match message.msg_type {
                 MessageType::StreamReceive | MessageType::StreamData => Ok(message.payload),
