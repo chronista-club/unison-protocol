@@ -10,20 +10,19 @@
 //! ```
 
 // パーサー関連
-pub use crate::parser::{SchemaParser, ParsedSchema};
+pub use crate::parser::{ParsedSchema, SchemaParser};
 
 // コードジェネレータ関連
-pub use crate::codegen::{RustGenerator, TypeScriptGenerator, CodeGenerator};
+pub use crate::codegen::{CodeGenerator, RustGenerator, TypeScriptGenerator};
 
 // ネットワーク関連
 pub use crate::network::{
-    ProtocolClient, ProtocolServer,
-    UnisonClient, UnisonServer, UnisonServerExt
+    ProtocolClient, ProtocolServer, UnisonClient, UnisonServer, UnisonServerExt,
 };
 
 // エラー型
-pub use crate::parser::ParseError as UnisonParseError;
 pub use crate::network::NetworkError as UnisonNetworkError;
+pub use crate::parser::ParseError as UnisonParseError;
 
 // メインエントリポイント
 pub use crate::UnisonProtocol;

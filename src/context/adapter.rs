@@ -1,18 +1,14 @@
 //! 既存システムとCGPの統合アダプター
 
+use serde_json::Value;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::RwLock;
-use serde_json::Value;
 
-use crate::network::{
-    ProtocolClient, ProtocolServer, NetworkError, 
-    ProtocolMessage, MessageType
-};
 use super::{
-    CgpProtocolContext, TransportLayer, ServiceRegistry,
-    MessageHandler, HandlerRegistry, Handler
+    CgpProtocolContext, Handler, HandlerRegistry, MessageHandler, ServiceRegistry, TransportLayer,
 };
+use crate::network::{MessageType, NetworkError, ProtocolClient, ProtocolMessage, ProtocolServer};
 
 // ========================================
 // Transport Adapter
@@ -36,33 +32,43 @@ impl QuicTransportAdapter {
 impl TransportLayer for QuicTransportAdapter {
     type Message = ProtocolMessage;
     type Error = NetworkError;
-    
+
     async fn send(&self, message: Self::Message) -> Result<(), Self::Error> {
-        self.client.send(message).await
+        self.client
+            .send(message)
+            .await
             .map_err(|e| NetworkError::Protocol(e.to_string()))
     }
-    
+
     async fn receive(&self) -> Result<Self::Message, Self::Error> {
-        self.client.receive().await
+        self.client
+            .receive()
+            .await
             .map_err(|e| NetworkError::Protocol(e.to_string()))
     }
-    
+
     async fn connect(&self, url: &str) -> Result<(), Self::Error> {
-        let result = self.client.connect(url).await
+        let result = self
+            .client
+            .connect(url)
+            .await
             .map_err(|e| NetworkError::Connection(e.to_string()));
         if result.is_ok() {
             self.connected.store(true, Ordering::SeqCst);
         }
         result
     }
-    
+
     async fn disconnect(&self) -> Result<(), Self::Error> {
-        let result = self.client.disconnect().await
+        let result = self
+            .client
+            .disconnect()
+            .await
             .map_err(|e| NetworkError::Connection(e.to_string()));
         self.connected.store(false, Ordering::SeqCst);
         result
     }
-    
+
     fn is_connected(&self) -> bool {
         self.connected.load(Ordering::SeqCst)
     }
@@ -74,7 +80,8 @@ impl TransportLayer for QuicTransportAdapter {
 
 /// UnisonServiceをServiceRegistryトレイトに適合させるアダプター
 pub struct ServiceRegistryAdapter {
-    services: Arc<RwLock<std::collections::HashMap<String, Arc<crate::network::service::UnisonService>>>>,
+    services:
+        Arc<RwLock<std::collections::HashMap<String, Arc<crate::network::service::UnisonService>>>>,
 }
 
 impl ServiceRegistryAdapter {
@@ -88,23 +95,23 @@ impl ServiceRegistryAdapter {
 impl ServiceRegistry for ServiceRegistryAdapter {
     type Service = Arc<crate::network::service::UnisonService>;
     type Error = NetworkError;
-    
+
     async fn register(&self, name: String, service: Self::Service) -> Result<(), Self::Error> {
         let mut services = self.services.write().await;
         services.insert(name, service);
         Ok(())
     }
-    
+
     async fn get(&self, name: &str) -> Option<Self::Service> {
         let services = self.services.read().await;
         services.get(name).cloned()
     }
-    
+
     async fn list(&self) -> Vec<String> {
         let services = self.services.read().await;
         services.keys().cloned().collect()
     }
-    
+
     async fn remove(&self, name: &str) -> Result<(), Self::Error> {
         let mut services = self.services.write().await;
         services.remove(name);
@@ -139,13 +146,13 @@ where
             legacy_client: None,
         }
     }
-    
+
     /// レガシークライアントとの互換性を保つ
     pub fn with_legacy(mut self, client: ProtocolClient) -> Self {
         self.legacy_client = Some(client);
         self
     }
-    
+
     /// CGPコンテキストを使ったメッセージ送信
     pub async fn send_message(&self, method: &str, payload: Value) -> Result<Value, NetworkError> {
         let message = ProtocolMessage {
@@ -154,10 +161,10 @@ where
             msg_type: MessageType::Request,
             payload,
         };
-        
+
         self.context.transport().send(message.clone()).await?;
         let response = self.context.transport().receive().await?;
-        
+
         Ok(response.payload)
     }
 }
@@ -179,24 +186,24 @@ impl CgpEnhancedServer {
             legacy_server: None,
         }
     }
-    
+
     /// レガシーサーバーとの互換性を保つ
     pub fn with_legacy(mut self, server: Arc<ProtocolServer>) -> Self {
         self.legacy_server = Some(server);
         self
     }
-    
+
     /// CGPハンドラーを登録
     pub async fn register_cgp_handler(&self, method: &str, handler: impl Handler + 'static) {
         self.handler_registry.register(method, handler).await;
     }
-    
+
     /// リクエストを処理
     pub async fn handle_request(&self, message: ProtocolMessage) -> Result<Value, NetworkError> {
         use super::MessageDispatcher;
         self.handler_registry.dispatch(message).await
     }
-    
+
     /// 既存のProtocolServerハンドラーをCGPハンドラーに変換
     pub async fn migrate_legacy_handlers(&self, _server: &ProtocolServer) {
         // レガシーハンドラーをCGPハンドラーとして再登録
@@ -229,11 +236,13 @@ impl<F> Handler for LegacyHandlerBridge<F>
 where
     F: Fn(Value) -> Result<Value, NetworkError> + Send + Sync,
 {
-    fn handle(&self, payload: Value) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, NetworkError>> + Send + '_>> {
+    fn handle(
+        &self,
+        payload: Value,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, NetworkError>> + Send + '_>>
+    {
         let result = (self.handler)(payload);
-        Box::pin(async move {
-            result
-        })
+        Box::pin(async move { result })
     }
 }
 
@@ -257,25 +266,25 @@ pub struct MigrationHelper;
 impl MigrationHelper {
     /// ProtocolClientをCGPクライアントに変換
     pub async fn migrate_client(
-        client: ProtocolClient
+        client: ProtocolClient,
     ) -> CgpEnhancedClient<QuicTransportAdapter, ServiceRegistryAdapter, HandlerRegistry> {
         // QuicClientを抽出して新しいトランスポートアダプターを作成
         let transport = QuicTransportAdapter::new(crate::network::quic::QuicClient::new().unwrap());
         let registry = ServiceRegistryAdapter::new();
         let handler = HandlerRegistry::new();
-        
+
         let context = CgpProtocolContext::new(transport, registry, handler);
-        
+
         CgpEnhancedClient::new(context).with_legacy(client)
     }
-    
+
     /// ProtocolServerをCGPサーバーに変換  
     pub async fn migrate_server(server: Arc<ProtocolServer>) -> CgpEnhancedServer {
         let cgp_server = CgpEnhancedServer::new().with_legacy(server.clone());
-        
+
         // レガシーハンドラーを移行
         cgp_server.migrate_legacy_handlers(&server).await;
-        
+
         cgp_server
     }
 }

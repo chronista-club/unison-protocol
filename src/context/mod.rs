@@ -1,14 +1,14 @@
 //! CGPベースのコンテキスト定義
-//! 
+//!
 //! Context-Generic Programmingを使用して、Unison Protocolの
 //! モジュラーで拡張可能なアーキテクチャを実現します。
 
-pub mod handlers;
 pub mod adapter;
+pub mod handlers;
 
 // Re-export key types
-pub use handlers::{HandlerRegistry, Handler, MessageDispatcher};
 pub use adapter::{QuicTransportAdapter, ServiceRegistryAdapter};
+pub use handlers::{Handler, HandlerRegistry, MessageDispatcher};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -21,28 +21,28 @@ use crate::network::{NetworkError, ProtocolMessage};
 /// プロトコルメッセージを扱うコンテキスト
 pub trait HasProtocolMessage {
     type Message: Clone + Send + Sync;
-    
+
     fn message(&self) -> &Self::Message;
 }
 
 /// トランスポート層を持つコンテキスト
 pub trait HasTransport {
     type Transport: TransportLayer;
-    
+
     fn transport(&self) -> &Self::Transport;
 }
 
 /// サービスレジストリを持つコンテキスト
 pub trait HasServiceRegistry {
     type Registry: ServiceRegistry;
-    
+
     fn registry(&self) -> &Self::Registry;
 }
 
 /// エラーハンドリングコンテキスト
 pub trait HasErrorHandler {
     type Error: std::error::Error + Send + Sync + 'static;
-    
+
     fn handle_error(&self, error: Self::Error);
 }
 
@@ -55,7 +55,7 @@ pub trait HasErrorHandler {
 pub trait TransportLayer: Send + Sync {
     type Message;
     type Error;
-    
+
     async fn send(&self, message: Self::Message) -> Result<(), Self::Error>;
     async fn receive(&self) -> Result<Self::Message, Self::Error>;
     async fn connect(&self, url: &str) -> Result<(), Self::Error>;
@@ -64,7 +64,7 @@ pub trait TransportLayer: Send + Sync {
 }
 
 // ========================================
-// Service Registry Traits  
+// Service Registry Traits
 // ========================================
 
 /// サービスレジストリトレイト
@@ -72,7 +72,7 @@ pub trait TransportLayer: Send + Sync {
 pub trait ServiceRegistry: Send + Sync {
     type Service;
     type Error;
-    
+
     async fn register(&self, name: String, service: Self::Service) -> Result<(), Self::Error>;
     async fn get(&self, name: &str) -> Option<Self::Service>;
     async fn list(&self) -> Vec<String>;
@@ -86,7 +86,7 @@ pub trait ServiceRegistry: Send + Sync {
 /// メッセージハンドラーコンポーネント
 pub trait HasMessageHandler {
     type Handler: MessageHandler;
-    
+
     fn handler(&self) -> &Self::Handler;
 }
 
@@ -96,7 +96,7 @@ pub trait MessageHandler: Send + Sync {
     type Input;
     type Output;
     type Error;
-    
+
     async fn handle(&self, input: Self::Input) -> Result<Self::Output, Self::Error>;
 }
 
@@ -105,13 +105,14 @@ pub trait MessageHandler: Send + Sync {
 // ========================================
 
 /// Unison Protocol統合コンテキスト
-pub trait UnisonContext: 
-    HasProtocolMessage +
-    HasTransport +
-    HasServiceRegistry +
-    HasErrorHandler +
-    HasMessageHandler +
-    Send + Sync
+pub trait UnisonContext:
+    HasProtocolMessage
+    + HasTransport
+    + HasServiceRegistry
+    + HasErrorHandler
+    + HasMessageHandler
+    + Send
+    + Sync
 {
 }
 
@@ -120,7 +121,7 @@ pub trait UnisonContext:
 // ========================================
 
 /// CGPベースのプロトコルコンテキスト実装
-pub struct CgpProtocolContext<T, R, H> 
+pub struct CgpProtocolContext<T, R, H>
 where
     T: TransportLayer,
     R: ServiceRegistry,
@@ -146,17 +147,17 @@ where
             current_message: None,
         }
     }
-    
+
     /// トランスポート層への公開アクセス
     pub fn transport(&self) -> &T {
         &self.transport
     }
-    
+
     /// レジストリへの公開アクセス
     pub fn registry(&self) -> &Arc<RwLock<R>> {
         &self.registry
     }
-    
+
     /// ハンドラーへの公開アクセス
     pub fn handler(&self) -> &H {
         &self.handler
@@ -171,7 +172,7 @@ where
     H: MessageHandler,
 {
     type Transport = T;
-    
+
     fn transport(&self) -> &Self::Transport {
         &self.transport
     }
@@ -184,7 +185,7 @@ where
     H: MessageHandler,
 {
     type Message = Option<ProtocolMessage>;
-    
+
     fn message(&self) -> &Self::Message {
         &self.current_message
     }
@@ -197,7 +198,7 @@ where
     H: MessageHandler,
 {
     type Handler = H;
-    
+
     fn handler(&self) -> &Self::Handler {
         &self.handler
     }
@@ -222,22 +223,22 @@ impl<T, R, H> UnisonContextBuilder<T, R, H> {
             handler: None,
         }
     }
-    
+
     pub fn with_transport(mut self, transport: T) -> Self {
         self.transport = Some(transport);
         self
     }
-    
+
     pub fn with_registry(mut self, registry: R) -> Self {
         self.registry = Some(registry);
         self
     }
-    
+
     pub fn with_handler(mut self, handler: H) -> Self {
         self.handler = Some(handler);
         self
     }
-    
+
     pub fn build(self) -> Result<CgpProtocolContext<T, R, H>, String>
     where
         T: TransportLayer,
@@ -247,7 +248,7 @@ impl<T, R, H> UnisonContextBuilder<T, R, H> {
         let transport = self.transport.ok_or("Transport not set")?;
         let registry = self.registry.ok_or("Registry not set")?;
         let handler = self.handler.ok_or("Handler not set")?;
-        
+
         Ok(CgpProtocolContext::new(transport, registry, handler))
     }
 }
@@ -261,16 +262,16 @@ impl<T, R, H> UnisonContextBuilder<T, R, H> {
 pub enum ContextError {
     #[error("Transport error: {0}")]
     Transport(String),
-    
+
     #[error("Registry error: {0}")]
     Registry(String),
-    
+
     #[error("Handler error: {0}")]
     Handler(String),
-    
+
     #[error("Configuration error: {0}")]
     Configuration(String),
-    
+
     #[error("Network error: {0}")]
     Network(#[from] NetworkError),
 }
@@ -282,7 +283,7 @@ where
     H: MessageHandler,
 {
     type Error = ContextError;
-    
+
     fn handle_error(&self, error: Self::Error) {
         tracing::error!("Context error: {}", error);
     }

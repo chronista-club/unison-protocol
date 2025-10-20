@@ -1,13 +1,13 @@
 use anyhow::Result;
 use serde_json::json;
+use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::timeout;
-use tracing::{info, Level};
-use std::collections::HashMap;
+use tracing::{Level, info};
 
 use unison_protocol::network::{
-    Service, ServiceConfig, ServicePriority, UnisonService,
-    SystemStream, UnisonStream, StreamHandle, NetworkError
+    NetworkError, Service, ServiceConfig, ServicePriority, StreamHandle, SystemStream,
+    UnisonService, UnisonStream,
 };
 
 /// Test SystemStream basic functionality
@@ -113,12 +113,12 @@ impl SystemStream for MockSystemStream {
         self.sent_messages.push(data);
         Ok(())
     }
-    
+
     async fn receive(&mut self) -> Result<serde_json::Value, NetworkError> {
         if !self.active {
             return Err(NetworkError::Connection("Stream is not active".to_string()));
         }
-        
+
         // Return a mock response
         Ok(json!({
             "type": "mock_response",
@@ -126,16 +126,16 @@ impl SystemStream for MockSystemStream {
             "timestamp": chrono::Utc::now().to_rfc3339()
         }))
     }
-    
+
     fn is_active(&self) -> bool {
         self.active
     }
-    
+
     async fn close(&mut self) -> Result<(), NetworkError> {
         self.active = false;
         Ok(())
     }
-    
+
     fn get_handle(&self) -> StreamHandle {
         StreamHandle {
             stream_id: self.stream_id,
@@ -190,7 +190,7 @@ async fn test_stream_handle() -> Result<()> {
 
     assert_eq!(handle.stream_id, deserialized.stream_id);
     assert_eq!(handle.method, deserialized.method);
-    
+
     info!("✅ StreamHandle serialization/deserialization works");
     info!("   Stream ID: {}", handle.stream_id);
     info!("   Method: {}", handle.method);
