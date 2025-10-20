@@ -99,8 +99,11 @@ harness = false
 
 # Profile settings to fix macOS linker symbol length issue
 # This is needed when lld is not available (e.g., in CI)
+# Windows: Reduce debug info to avoid LNK1318 PDB limit error
 [profile.dev]
 split-debuginfo = "unpacked"
+debug = 1  # Line numbers only, reduces PDB size on Windows
 
 [profile.test]
 split-debuginfo = "unpacked"
+debug = 1  # Line numbers only, reduces PDB size on Windows
