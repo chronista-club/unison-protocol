@@ -335,6 +335,9 @@ println!("アクティブストリーム: {}", stats.active_streams);
 git clone https://github.com/chronista-club/unison-protocol
 cd unison-protocol
 
+# macOSの場合: LLDリンカーをインストール（テスト実行に必要）
+brew install lld
+
 # 依存関係のインストール
 cargo build
 
@@ -344,6 +347,16 @@ cargo run --example unison_ping_server
 # テストの実行
 cargo test
 ```
+
+> **macOS開発者向けの注意**: macOSの標準リンカーには制限があるため、テストを実行するには`lld`リンカーが必要です。`brew install lld`でインストール後、プロジェクトルートに`.cargo/config.toml`ファイルを作成して以下の設定を追加してください：
+> 
+> ```toml
+> [target.aarch64-apple-darwin]
+> linker = "clang"
+> rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/ld64.lld"]
+> ```
+> 
+> **注**: `.cargo/config.toml`はローカル開発環境専用の設定ファイルです（`.gitignore`に含まれています）。CI環境では不要です。
 
 ### コード生成
 

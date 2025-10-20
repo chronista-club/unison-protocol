@@ -70,7 +70,7 @@ indexmap = "2.6"
 scc = "3"
 tempfile = "3.13"
 kdl = "6.3.4"
-knuffel = "3.2.0"
+knuffel = { git = "https://github.com/chronista-club/knuffel.git" }
 
 [build-dependencies]
 kdl = "6.3.4"
@@ -96,3 +96,13 @@ harness = false
 [[bench]]
 name = "throughput"
 harness = false
+
+# Profile settings to fix macOS linker symbol length issue and Windows PDB limit
+# This is needed when lld is not available (e.g., in CI)
+[profile.dev]
+split-debuginfo = "unpacked"
+codegen-units = 256  # Reduce PDB file size on Windows
+
+[profile.test]
+split-debuginfo = "unpacked"
+codegen-units = 256  # Reduce PDB file size on Windows

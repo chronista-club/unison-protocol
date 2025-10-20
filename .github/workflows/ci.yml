@@ -68,6 +68,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.rust }}-cargo-build-target-
 
+      - name: Set macOS-specific build flags
+        if: runner.os == 'macOS'
+        run: |
+          echo "RUSTFLAGS=-C symbol-mangling-version=v0" >> $GITHUB_ENV
+
+      - name: Set Windows-specific build flags
+        if: runner.os == 'Windows'
+        run: |
+          echo "CARGO_PROFILE_DEV_DEBUG=0" >> $env:GITHUB_ENV
+          echo "CARGO_PROFILE_TEST_DEBUG=0" >> $env:GITHUB_ENV
+
       - name: Run cargo check
         run: cargo check --all-features
 

@@ -53,8 +53,8 @@ pub mod parser;
 // プロトコル定義のコアモジュール
 pub mod core;
 
-// パケット層モジュール
-pub mod packet;
+// フレーム層モジュール
+pub mod frame;
 
 // CGPベースのコンテキストモジュール
 pub mod context;
@@ -129,7 +129,7 @@ impl UnisonProtocol {
 
     /// 新しいUnisonクライアントを作成
     pub fn create_client(&self) -> Result<ProtocolClient, anyhow::Error> {
-        Ok(ProtocolClient::new_default()?)
+        ProtocolClient::new_default()
     }
 
     /// 新しいUnisonサーバーを作成
@@ -158,22 +158,14 @@ mod tests {
     fn test_parse_schema() {
         let schema = r#"
 protocol "test" version="1.0.0" {
-    namespace "test.protocol"
-    description "ユニットテスト用のテストプロトコル"
-
-    message "TestMessage" {
-        description "テストメッセージ構造"
-        field "id" type="string" required=#true description="一意識別子"
-        field "value" type="number" required=#false description="オプションの数値"
-    }
-
     service "TestService" {
-        description "ユニットテスト用のテストサービス"
-
         method "test_method" {
-            description "テストメソッド"
-            request "TestMessage"
-            response "TestMessage"
+            request {
+                field "id" type="string"
+            }
+            response {
+                field "id" type="string"
+            }
         }
     }
 }

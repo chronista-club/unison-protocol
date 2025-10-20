@@ -1,6 +1,6 @@
-//! # UnisonPacket - 低レベルバイナリパケットフォーマット
+//! # UnisonFrame - 低レベルバイナリフレームフォーマット
 //!
-//! Unison Protocolで使用される効率的なパケット表現を提供します。
+//! Unison Protocolで使用される効率的なフレーム表現を提供します。
 //!
 //! ## 特徴
 //!
@@ -12,11 +12,11 @@
 //! ## 使用例
 //!
 //! ```ignore
-//! use unison_protocol::packet::{UnisonPacket, StringPayload};
+//! use unison_protocol::packet::{UnisonFrame, StringPayload};
 //!
-//! // パケット作成
-//! let payload = StringPayload::from_str("Hello, World!");
-//! let packet = UnisonPacket::builder()
+//! // フレーム作成
+//! let payload = StringPayload::from_string("Hello, World!");
+//! let packet = UnisonFrame::builder()
 //!     .with_stream_id(123)
 //!     .with_sequence(1)
 //!     .build(payload)?;
@@ -25,7 +25,7 @@
 //! let bytes = packet.to_bytes()?;
 //!
 //! // Bytesから復元
-//! let restored = UnisonPacket::<StringPayload>::from_bytes(&bytes)?;
+//! let restored = UnisonFrame::<StringPayload>::from_bytes(&bytes)?;
 //! ```
 
 pub mod config;
@@ -35,62 +35,75 @@ pub mod payload;
 pub mod serialization;
 
 // 主要な型を再エクスポート
-pub use config::{ChecksumConfig, CompressionConfig, PacketConfig};
-pub use flags::PacketFlags;
-pub use header::{PacketType, UnisonPacketHeader};
+pub use config::{ChecksumConfig, CompressionConfig, FrameConfig};
+pub use flags::FrameFlags;
+pub use header::{FrameType, UnisonFrameHeader};
 pub use payload::{
-    BytesPayload, EmptyPayload, JsonPayload, PayloadError, Payloadable, StringPayload,
+    BytesPayload, EmptyPayload, JsonPayload, PayloadError, Payloadable, RkyvPayload, StringPayload,
 };
-pub use serialization::{PacketDeserializer, PacketSerializer, SerializationError};
+pub use serialization::{FrameDeserializer, FrameSerializer, SerializationError};
 
 use bytes::Bytes;
 use rkyv::Deserialize;
 use std::marker::PhantomData;
 
-/// UnisonPacket - ジェネリックなペイロードを持つパケット
+/// UnisonFrame - ジェネリックなペイロードを持つフレーム
 ///
-/// 実際のパケットデータはBytesとして保持され、
+/// 実際のフレームデータはBytesとして保持され、
 /// 必要に応じてペイロードをデシリアライズします。
-pub struct UnisonPacket<T>
+pub struct UnisonFrame<T>
 where
     T: Payloadable,
 {
-    /// シリアライズされたパケットデータ
+    /// シリアライズされたフレームデータ
     raw_data: Bytes,
     /// ペイロード型のマーカー
     _phantom: PhantomData<T>,
 }
 
-impl<T> UnisonPacket<T>
+impl<T> UnisonFrame<T>
 where
     T: Payloadable,
 {
-    /// パケットビルダーを作成
-    pub fn builder() -> UnisonPacketBuilder<T> {
-        UnisonPacketBuilder::new()
+    /// フレームビルダーを作成
+    pub fn builder() -> UnisonFrameBuilder<T> {
+        UnisonFrameBuilder::new()
     }
 
-    /// 指定したペイロードでパケットを作成
+    /// 指定したペイロードでフレームを作成
     pub fn new(payload: T) -> Result<Self, SerializationError> {
         Self::builder().build(payload)
     }
 
-    /// ヘッダーとペイロードを指定してパケットを作成
+    /// ヘッダーとペイロードを指定してフレームを作成
     pub fn with_header(
-        mut header: UnisonPacketHeader,
+        mut header: UnisonFrameHeader,
         payload: T,
     ) -> Result<Self, SerializationError> {
-        let raw_data = PacketSerializer::serialize(&mut header, &payload)?;
+        let raw_data = FrameSerializer::serialize(&mut header, &payload)?;
         Ok(Self {
             raw_data,
             _phantom: PhantomData,
         })
     }
 
-    /// Bytesからパケットを復元
+    /// ヘッダーとペイロードを指定してフレームを作成（カスタム設定）
+    pub fn with_header_and_config(
+        mut header: UnisonFrameHeader,
+        payload: T,
+        config: &FrameConfig,
+    ) -> Result<Self, SerializationError> {
+        let raw_data = FrameSerializer::serialize_with_config(&mut header, &payload, config)?;
+        Ok(Self {
+            raw_data,
+            _phantom: PhantomData,
+        })
+    }
+
+    /// Bytesからフレームを復元
     pub fn from_bytes(bytes: &Bytes) -> Result<Self, SerializationError> {
         // ヘッダーの検証のみ行う（ペイロードは遅延デシリアライズ）
-        let (header, _) = PacketDeserializer::deserialize_header(bytes)?;
+        let (header, _) = FrameDeserializer::deserialize_header(bytes)?;
 
         // バージョンとサイズのチェック
         if !header.is_compatible() {
@@ -99,7 +112,7 @@ where
             });
         }
 
-        let default_config = PacketConfig::default();
+        let default_config = FrameConfig::default();
         if bytes.len() > default_config.max_payload_size {
             return Err(SerializationError::PacketTooLarge {
                 size: bytes.len(),
@@ -113,7 +126,7 @@ where
         })
     }
 
-    /// パケットをBytesに変換
+    /// フレームをBytesに変換
     pub fn to_bytes(&self) -> Bytes {
         self.raw_data.clone()
     }
@@ -123,14 +136,14 @@ where
         &self.raw_data
     }
 
-    /// パケットサイズを取得
+    /// フレームサイズを取得
     pub fn size(&self) -> usize {
         self.raw_data.len()
     }
 
     /// ヘッダーを取得
-    pub fn header(&self) -> Result<UnisonPacketHeader, SerializationError> {
-        let (header, _) = PacketDeserializer::deserialize_header(&self.raw_data)?;
+    pub fn header(&self) -> Result<UnisonFrameHeader, SerializationError> {
+        let (header, _) = FrameDeserializer::deserialize_header(&self.raw_data)?;
         Ok(header)
     }
 
@@ -140,8 +153,8 @@ where
         T::Archived: Deserialize<T, rkyv::Infallible>,
         for<'a> T::Archived: rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'a>>,
     {
-        let (header, payload_bytes) = PacketDeserializer::deserialize_header(&self.raw_data)?;
-        PacketDeserializer::deserialize_payload(&header, &payload_bytes)
+        let (header, payload_bytes) = FrameDeserializer::deserialize_header(&self.raw_data)?;
+        FrameDeserializer::deserialize_payload(&header, &payload_bytes)
     }
 
     /// ペイロードをゼロコピーで参照（アーカイブされた形式）
@@ -152,43 +165,43 @@ where
     where
         for<'b> T::Archived: rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'b>>,
     {
-        let (header, _) = PacketDeserializer::deserialize_header(&self.raw_data)?;
+        let (header, _) = FrameDeserializer::deserialize_header(&self.raw_data)?;
 
         // ヘッダーサイズをスキップしてペイロード部分を取得
         let payload_start = 48; // ヘッダーサイズ
         let payload_bytes = &self.raw_data[payload_start..];
 
-        PacketDeserializer::deserialize_payload_zero_copy::<T>(&header, payload_bytes, buffer)
+        FrameDeserializer::deserialize_payload_zero_copy::<T>(&header, payload_bytes, buffer)
     }
 }
 
-/// UnisonPacketビルダー
+/// UnisonFrameビルダー
 ///
-/// パケットの各種パラメータを設定してパケットを構築します。
-pub struct UnisonPacketBuilder<T>
+/// フレームの各種パラメータを設定してフレームを構築します。
+pub struct UnisonFrameBuilder<T>
 where
     T: Payloadable,
 {
-    header: UnisonPacketHeader,
+    header: UnisonFrameHeader,
     enable_checksum: bool,
     _phantom: PhantomData<T>,
 }
 
-impl<T> UnisonPacketBuilder<T>
+impl<T> UnisonFrameBuilder<T>
 where
     T: Payloadable,
 {
     /// 新しいビルダーを作成
     pub fn new() -> Self {
         Self {
-            header: UnisonPacketHeader::new(PacketType::Data),
+            header: UnisonFrameHeader::new(FrameType::Data),
             enable_checksum: false,
             _phantom: PhantomData,
         }
     }
 
-    /// パケットタイプを設定
-    pub fn packet_type(mut self, packet_type: PacketType) -> Self {
+    /// フレームタイプを設定
+    pub fn packet_type(mut self, packet_type: FrameType) -> Self {
         self.header.set_packet_type(packet_type);
         self
     }
@@ -215,7 +228,7 @@ where
     /// 高優先度フラグを設定
     pub fn with_high_priority(mut self) -> Self {
         let mut flags = self.header.flags();
-        flags.set(PacketFlags::PRIORITY_HIGH);
+        flags.set(FrameFlags::PRIORITY_HIGH);
         self.header.set_flags(flags);
         self
     }
@@ -223,28 +236,33 @@ where
     /// ACK要求フラグを設定
     pub fn requires_ack(mut self) -> Self {
         let mut flags = self.header.flags();
-        flags.set(PacketFlags::REQUIRES_ACK);
+        flags.set(FrameFlags::REQUIRES_ACK);
         self.header.set_flags(flags);
         self
     }
 
     /// カスタムフラグを設定
-    pub fn with_flags(mut self, flags: PacketFlags) -> Self {
+    pub fn with_flags(mut self, flags: FrameFlags) -> Self {
         self.header.set_flags(flags);
         self
     }
 
-    /// パケットを構築
-    pub fn build(mut self, payload: T) -> Result<UnisonPacket<T>, SerializationError> {
+    /// フレームを構築
+    pub fn build(mut self, payload: T) -> Result<UnisonFrame<T>, SerializationError> {
         // タイムスタンプを更新
         self.header.update_timestamp();
 
-        // パケットを作成
-        UnisonPacket::with_header(self.header, payload)
+        // チェックサムが有効な場合は設定を適用
+        if self.enable_checksum {
+            let config = FrameConfig::default().with_checksum(ChecksumConfig::enabled());
+            UnisonFrame::with_header_and_config(self.header, payload, &config)
+        } else {
+            UnisonFrame::with_header(self.header, payload)
+        }
     }
 }
 
-impl<T> Default for UnisonPacketBuilder<T>
+impl<T> Default for UnisonFrameBuilder<T>
 where
     T: Payloadable,
 {
@@ -253,16 +271,16 @@ where
     }
 }
 
-/// UnisonPacketビュー - ゼロコピー読み取り用
+/// UnisonFrameビュー - ゼロコピー読み取り用
 ///
-/// パケットデータを所有せず、参照として保持します。
-pub struct UnisonPacketView<'a> {
-    header: UnisonPacketHeader,
+/// フレームデータを所有せず、参照として保持します。
+pub struct UnisonFrameView<'a> {
+    header: UnisonFrameHeader,
     payload_bytes: &'a [u8],
     is_compressed: bool,
 }
 
-impl<'a> UnisonPacketView<'a> {
+impl<'a> UnisonFrameView<'a> {
     /// Bytesからビューを作成
     pub fn from_bytes(bytes: &'a [u8]) -> Result<Self, SerializationError> {
         if bytes.len() < 48 {
@@ -271,9 +289,9 @@ impl<'a> UnisonPacketView<'a> {
 
         // ヘッダーをパース
         let header_bytes = &bytes[..48];
-        let archived_header = rkyv::check_archived_root::<UnisonPacketHeader>(header_bytes)
+        let archived_header = rkyv::check_archived_root::<UnisonFrameHeader>(header_bytes)
             .map_err(|e| SerializationError::DeserializationFailed(e.to_string()))?;
-        let header: UnisonPacketHeader = archived_header
+        let header: UnisonFrameHeader = archived_header
             .deserialize(&mut rkyv::Infallible)
             .map_err(|_| SerializationError::InvalidHeader)?;
 
@@ -289,7 +307,7 @@ impl<'a> UnisonPacketView<'a> {
     }
 
     /// ヘッダーへの参照を取得
-    pub fn header(&self) -> &UnisonPacketHeader {
+    pub fn header(&self) -> &UnisonFrameHeader {
         &self.header
     }
 
@@ -315,13 +333,13 @@ mod tests {
 
     #[test]
     fn test_packet_creation() {
-        let payload = StringPayload::from_str("Test packet");
-        let packet = UnisonPacket::new(payload.clone()).unwrap();
+        let payload = StringPayload::from_string("Test packet");
+        let packet = UnisonFrame::new(payload.clone()).unwrap();
 
         assert!(packet.size() > 48);
 
         let header = packet.header().unwrap();
-        assert_eq!(header.packet_type(), PacketType::Data);
+        assert_eq!(header.packet_type(), FrameType::Data);
 
         let restored_payload = packet.payload().unwrap();
         assert_eq!(restored_payload.data, payload.data);
@@ -329,9 +347,9 @@ mod tests {
 
     #[test]
     fn test_packet_builder() {
-        let payload = StringPayload::from_str("Builder test");
-        let packet = UnisonPacket::builder()
-            .packet_type(PacketType::Control)
+        let payload = StringPayload::from_string("Builder test");
+        let packet = UnisonFrame::builder()
+            .packet_type(FrameType::Control)
             .with_sequence(42)
             .with_stream_id(1337)
             .with_checksum()
@@ -340,7 +358,7 @@ mod tests {
             .unwrap();
 
         let header = packet.header().unwrap();
-        assert_eq!(header.packet_type(), PacketType::Control);
+        assert_eq!(header.packet_type(), FrameType::Control);
         assert_eq!(header.sequence_number, 42);
         assert_eq!(header.stream_id, 1337);
         assert!(header.has_checksum());
@@ -349,11 +367,11 @@ mod tests {
 
     #[test]
     fn test_round_trip() {
-        let original = StringPayload::from_str("Round trip test");
-        let packet = UnisonPacket::new(original.clone()).unwrap();
+        let original = StringPayload::from_string("Round trip test");
+        let packet = UnisonFrame::new(original.clone()).unwrap();
 
         let bytes = packet.to_bytes();
-        let restored_packet = UnisonPacket::<StringPayload>::from_bytes(&bytes).unwrap();
+        let restored_packet = UnisonFrame::<StringPayload>::from_bytes(&bytes).unwrap();
         let restored = restored_packet.payload().unwrap();
 
         assert_eq!(original.data, restored.data);
@@ -362,11 +380,11 @@ mod tests {
     #[test]
     fn test_zero_copy_view() {
         let payload = BytesPayload::new(vec![1, 2, 3, 4, 5]);
-        let packet = UnisonPacket::new(payload).unwrap();
+        let packet = UnisonFrame::new(payload).unwrap();
         let bytes = packet.to_bytes();
 
-        let view = UnisonPacketView::from_bytes(&bytes).unwrap();
-        assert_eq!(view.header().packet_type(), PacketType::Data);
+        let view = UnisonFrameView::from_bytes(&bytes).unwrap();
+        assert_eq!(view.header().packet_type(), FrameType::Data);
         assert!(view.payload_size() > 0);
 
         let mut buffer = Vec::new();
@@ -379,7 +397,7 @@ mod tests {
         // 圧縮閾値を超える大きなペイロード
         let large_text = "x".repeat(3000);
         let payload = StringPayload::new(large_text.clone());
-        let packet = UnisonPacket::new(payload).unwrap();
+        let packet = UnisonFrame::new(payload).unwrap();
 
         let header = packet.header().unwrap();
         assert!(header.is_compressed());
@@ -388,7 +406,7 @@ mod tests {
 
         // ラウンドトリップテスト
         let bytes = packet.to_bytes();
-        let restored_packet = UnisonPacket::<StringPayload>::from_bytes(&bytes).unwrap();
+        let restored_packet = UnisonFrame::<StringPayload>::from_bytes(&bytes).unwrap();
         let restored = restored_packet.payload().unwrap();
         assert_eq!(restored.data, large_text);
     }

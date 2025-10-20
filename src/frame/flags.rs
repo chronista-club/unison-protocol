@@ -1,15 +1,15 @@
-//! パケットフラグの定義とビット操作ユーティリティ
+//! フレームフラグの定義とビット操作ユーティリティ
 //!
 //! UnisonPacketで使用されるビットフラグを定義します。
 //! 各フラグはパケットの状態や処理方法を示します。
 
 use std::fmt;
 
-/// パケットフラグを表すビットフィールド
+/// フレームフラグを表すビットフィールド
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct PacketFlags(pub u16);
+pub struct FrameFlags(pub u16);
 
-impl PacketFlags {
+impl FrameFlags {
     /// ペイロードが圧縮されている
     pub const COMPRESSED: u16 = 0b0000_0000_0000_0001; // bit 0
 
@@ -151,7 +151,7 @@ impl PacketFlags {
     }
 }
 
-impl fmt::Display for PacketFlags {
+impl fmt::Display for FrameFlags {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut flags = Vec::new();
 
@@ -190,21 +190,21 @@ impl fmt::Display for PacketFlags {
         }
 
         if flags.is_empty() {
-            write!(f, "PacketFlags(NONE)")
+            write!(f, "FrameFlags(NONE)")
         } else {
-            write!(f, "PacketFlags({})", flags.join(" | "))
+            write!(f, "FrameFlags({})", flags.join(" | "))
         }
     }
 }
 
-impl From<u16> for PacketFlags {
+impl From<u16> for FrameFlags {
     fn from(bits: u16) -> Self {
         Self(bits)
     }
 }
 
-impl From<PacketFlags> for u16 {
-    fn from(flags: PacketFlags) -> Self {
+impl From<FrameFlags> for u16 {
+    fn from(flags: FrameFlags) -> Self {
         flags.0
     }
 }
@@ -215,22 +215,22 @@ mod tests {
 
     #[test]
     fn test_flag_operations() {
-        let mut flags = PacketFlags::new();
+        let mut flags = FrameFlags::new();
         assert_eq!(flags.bits(), 0);
 
         // フラグを設定
-        flags.set(PacketFlags::COMPRESSED);
+        flags.set(FrameFlags::COMPRESSED);
         assert!(flags.is_compressed());
         assert!(!flags.is_encrypted());
 
         // 複数のフラグを設定
-        flags.set(PacketFlags::PRIORITY_HIGH | PacketFlags::REQUIRES_ACK);
+        flags.set(FrameFlags::PRIORITY_HIGH | FrameFlags::REQUIRES_ACK);
         assert!(flags.is_compressed());
         assert!(flags.is_high_priority());
         assert!(flags.requires_ack());
 
         // フラグをクリア
-        flags.unset(PacketFlags::COMPRESSED);
+        flags.unset(FrameFlags::COMPRESSED);
         assert!(!flags.is_compressed());
         assert!(flags.is_high_priority());
 
@@ -241,26 +241,26 @@ mod tests {
 
     #[test]
     fn test_contains_methods() {
-        let mut flags = PacketFlags::new();
-        flags.set(PacketFlags::COMPRESSED | PacketFlags::PRIORITY_HIGH);
+        let mut flags = FrameFlags::new();
+        flags.set(FrameFlags::COMPRESSED | FrameFlags::PRIORITY_HIGH);
 
         // 単一フラグチェック
-        assert!(flags.contains(PacketFlags::COMPRESSED));
-        assert!(!flags.contains(PacketFlags::ENCRYPTED));
+        assert!(flags.contains(FrameFlags::COMPRESSED));
+        assert!(!flags.contains(FrameFlags::ENCRYPTED));
 
         // 複数フラグチェック
-        assert!(flags.contains_all(PacketFlags::COMPRESSED | PacketFlags::PRIORITY_HIGH));
-        assert!(!flags.contains_all(PacketFlags::COMPRESSED | PacketFlags::ENCRYPTED));
-        assert!(flags.contains_any(PacketFlags::COMPRESSED | PacketFlags::ENCRYPTED));
-        assert!(!flags.contains_any(PacketFlags::ENCRYPTED | PacketFlags::FRAGMENTED));
+        assert!(flags.contains_all(FrameFlags::COMPRESSED | FrameFlags::PRIORITY_HIGH));
+        assert!(!flags.contains_all(FrameFlags::COMPRESSED | FrameFlags::ENCRYPTED));
+        assert!(flags.contains_any(FrameFlags::COMPRESSED | FrameFlags::ENCRYPTED));
+        assert!(!flags.contains_any(FrameFlags::ENCRYPTED | FrameFlags::FRAGMENTED));
     }
 
     #[test]
     fn test_display() {
-        let mut flags = PacketFlags::new();
-        assert_eq!(format!("{}", flags), "PacketFlags(NONE)");
+        let mut flags = FrameFlags::new();
+        assert_eq!(format!("{}", flags), "FrameFlags(NONE)");
 
-        flags.set(PacketFlags::COMPRESSED | PacketFlags::PRIORITY_HIGH);
+        flags.set(FrameFlags::COMPRESSED | FrameFlags::PRIORITY_HIGH);
         let display = format!("{}", flags);
         assert!(display.contains("COMPRESSED"));
         assert!(display.contains("PRIORITY_HIGH"));

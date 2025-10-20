@@ -1,6 +1,6 @@
 //! ペイロード用のトレイトと基本実装
 //!
-//! UnisonPacketのペイロードとして使用できる型のトレイトを定義します。
+//! UnisonFrameのペイロードとして使用できる型のトレイトを定義します。
 
 use bytes::Bytes;
 use rkyv::{
@@ -25,7 +25,7 @@ pub enum PayloadError {
     TooLarge { size: usize, max_size: usize },
 }
 
-/// ペイロードとしてUnisonPacketで使用できる型のトレイト
+/// ペイロードとしてUnisonFrameで使用できる型のトレイト
 ///
 /// このトレイトを実装する型は、rkyvによるゼロコピーシリアライゼーションと
 /// bytesクレートとの相互変換をサポートする必要があります。
@@ -111,7 +111,7 @@ impl StringPayload {
         Self { data }
     }
 
-    pub fn from_str(data: &str) -> Self {
+    pub fn from_string(data: &str) -> Self {
         Self {
             data: data.to_string(),
         }
@@ -137,7 +137,7 @@ impl JsonPayload {
         Ok(Self { json_str })
     }
 
-    pub fn from_str(json_str: &str) -> Result<Self, PayloadError> {
+    pub fn from_json_str(json_str: &str) -> Result<Self, PayloadError> {
         // JSONの妥当性を検証
         serde_json::from_str::<serde_json::Value>(json_str)
             .map_err(|_| PayloadError::InvalidData)?;
@@ -169,6 +169,35 @@ impl Payloadable for EmptyPayload {
     }
 }
 
+/// rkyv直接シリアライズペイロードラッパー
+///
+/// Archive + Serialize + Deserialize を実装した任意の型をペイロードとして使用できます。
+#[derive(Archive, Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[archive(check_bytes)]
+pub struct RkyvPayload<T>
+where
+    T: Archive + Serialize<AllocSerializer<256>>,
+{
+    pub data: T,
+}
+
+impl<T> RkyvPayload<T>
+where
+    T: Archive + Serialize<AllocSerializer<256>>,
+{
+    pub fn new(data: T) -> Self {
+        Self { data }
+    }
+}
+
+impl<T> Payloadable for RkyvPayload<T>
+where
+    T: Archive + Serialize<AllocSerializer<256>>,
+    T::Archived: Deserialize<T, rkyv::Infallible>,
+    for<'a> T::Archived: CheckBytes<DefaultValidator<'a>>,
+{
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,8 +222,8 @@ mod tests {
 
     #[test]
     fn test_string_payload() {
-        let text = "Hello, UnisonPacket!";
-        let payload = StringPayload::from_str(text);
+        let text = "Hello, UnisonFrame!";
+        let payload = StringPayload::from_string(text);
 
         let bytes = payload.to_bytes().unwrap();
         let restored = StringPayload::from_bytes(&bytes).unwrap();
@@ -256,10 +285,10 @@ mod tests {
 
     #[test]
     fn test_invalid_json() {
-        let result = JsonPayload::from_str("not a json");
+        let result = JsonPayload::from_json_str("not a json");
         assert!(result.is_err());
 
-        let result = JsonPayload::from_str(r#"{"valid": "json"}"#);
+        let result = JsonPayload::from_json_str(r#"{"valid": "json"}"#);
         assert!(result.is_ok());
     }
 }

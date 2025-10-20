@@ -14,8 +14,8 @@ use tokio::sync::{Mutex, RwLock, mpsc};
 use tracing::{error, info, warn};
 
 use super::{
-    MessageType, NetworkError, ProtocolMessage, ProtocolServerTrait, StreamHandle, SystemStream,
-    server::ProtocolServer,
+    MessageType, NetworkError, ProtocolFrame, ProtocolMessage, ProtocolServerTrait, StreamHandle,
+    SystemStream, server::ProtocolServer,
 };
 
 /// Default certificate file paths for assets/certs directory
@@ -34,6 +34,7 @@ struct EmbeddedCerts;
 
 /// QUIC client implementation
 pub struct QuicClient {
+    #[allow(dead_code)]
     endpoint: Option<Endpoint>,
     connection: Arc<RwLock<Option<Connection>>>,
     rx: Arc<RwLock<Option<mpsc::UnboundedReceiver<ProtocolMessage>>>>,
@@ -111,9 +112,8 @@ impl QuicClient {
             // IPv6アドレスにデフォルトポートを追加
             let addr_with_brackets = format!("[{}]:{}", addr, DEFAULT_PORT);
             if let Ok(socket_addr) = addr_with_brackets.parse::<SocketAddr>() {
-                match socket_addr {
-                    SocketAddr::V6(_) => return Ok(socket_addr),
-                    _ => {}
+                if let SocketAddr::V6(_) = socket_addr {
+                    return Ok(socket_addr);
                 }
             }
         }
@@ -124,8 +124,8 @@ impl QuicClient {
         }
 
         // "localhost:port"形式の場合はIPv6ループバックを使用
-        if addr.starts_with("localhost:") {
-            if let Ok(port) = addr[10..].parse::<u16>() {
+        if let Some(stripped) = addr.strip_prefix("localhost:") {
+            if let Ok(port) = stripped.parse::<u16>() {
                 return Ok(SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], port)));
             }
         }
@@ -168,10 +168,11 @@ impl QuicClient {
                 .await
                 .context("Failed to open bidirectional QUIC stream")?;
 
-            // リクエストを送信
-            let json = serde_json::to_vec(&message)?;
+            // リクエストをフレームに変換して送信
+            let frame = message.into_frame().context("Failed to create frame")?;
+            let frame_bytes = frame.to_bytes();
             send_stream
-                .write_all(&json)
+                .write_all(&frame_bytes)
                 .await
                 .context("Failed to write to QUIC stream")?;
             send_stream
@@ -183,8 +184,12 @@ impl QuicClient {
             let task = tokio::spawn(async move {
                 match recv_stream.read_to_end(MAX_MESSAGE_SIZE).await {
                     Ok(data) => {
-                        if let Ok(response) = serde_json::from_slice::<ProtocolMessage>(&data) {
-                            let _ = tx.send(response);
+                        // フレームからProtocolMessageを復元
+                        let frame_bytes = bytes::Bytes::from(data);
+                        if let Ok(frame) = ProtocolFrame::from_bytes(&frame_bytes) {
+                            if let Ok(response) = ProtocolMessage::from_frame(&frame) {
+                                let _ = tx.send(response);
+                            }
                         }
                     }
                     Err(e) => {
@@ -255,7 +260,7 @@ impl QuicClient {
     pub async fn is_connected(&self) -> bool {
         let connection_guard = self.connection.read().await;
         if let Some(connection) = connection_guard.as_ref() {
-            !connection.close_reason().is_some()
+            connection.close_reason().is_none()
         } else {
             false
         }
@@ -306,7 +311,7 @@ impl QuicServer {
         let cert_chain = rustls_pemfile::certs(&mut cert_pem.as_bytes())
             .collect::<Result<Vec<_>, _>>()
             .context("Failed to parse certificate")?;
-        let certs = cert_chain.into_iter().map(CertificateDer::from).collect();
+        let certs = cert_chain;
 
         // Convert to owned data for static lifetime
         let key_der_owned = key_der.clone();
@@ -329,7 +334,7 @@ impl QuicServer {
         let cert_chain = rustls_pemfile::certs(&mut cert_pem.as_bytes())
             .collect::<Result<Vec<_>, _>>()
             .context("Failed to parse embedded certificate")?;
-        let certs = cert_chain.into_iter().map(CertificateDer::from).collect();
+        let certs = cert_chain;
 
         // Load private key (already in DER format) - clone to own the data
         let key_data_owned = key_data.data.to_vec();
@@ -431,9 +436,8 @@ impl QuicServer {
             // IPv6アドレスにポートを追加
             let addr_with_brackets = format!("[{}]:{}", addr, DEFAULT_PORT);
             if let Ok(socket_addr) = addr_with_brackets.parse::<SocketAddr>() {
-                match socket_addr {
-                    SocketAddr::V6(_) => return Ok(socket_addr),
-                    _ => {}
+                if let SocketAddr::V6(_) = socket_addr {
+                    return Ok(socket_addr);
                 }
             }
         }
@@ -508,65 +512,145 @@ async fn handle_connection(connection: Connection, server: Arc<ProtocolServer>) 
                 tokio::spawn(async move {
                     match recv_stream.read_to_end(MAX_MESSAGE_SIZE).await {
                         Ok(data) => {
-                            match serde_json::from_slice::<ProtocolMessage>(&data) {
+                            // フレームからProtocolMessageを復元
+                            let frame_bytes = bytes::Bytes::from(data);
+                            let frame_result = ProtocolFrame::from_bytes(&frame_bytes);
+                            let request_result =
+                                frame_result.and_then(|frame| ProtocolMessage::from_frame(&frame));
+
+                            match request_result {
                                 Ok(request) => {
                                     // Process the message based on its type
                                     match request.msg_type {
                                         super::MessageType::Request => {
+                                            let payload_value = match request.payload_as_value() {
+                                                Ok(v) => v,
+                                                Err(e) => {
+                                                    error!(
+                                                        "Failed to parse request payload: {}",
+                                                        e
+                                                    );
+                                                    return;
+                                                }
+                                            };
+
                                             let response = server
-                                                .handle_call(&request.method, request.payload)
+                                                .handle_call(&request.method, payload_value)
                                                 .await;
 
                                             let response_msg = match response {
-                                                Ok(payload) => ProtocolMessage {
-                                                    id: request.id,
-                                                    method: request.method,
-                                                    msg_type: super::MessageType::Response,
-                                                    payload,
-                                                },
-                                                Err(e) => ProtocolMessage {
-                                                    id: request.id,
-                                                    method: request.method,
-                                                    msg_type: super::MessageType::Error,
-                                                    payload: serde_json::json!({
-                                                        "message": e.to_string(),
-                                                    }),
-                                                },
+                                                Ok(payload) => {
+                                                    match ProtocolMessage::new_with_json(
+                                                        request.id,
+                                                        request.method,
+                                                        super::MessageType::Response,
+                                                        payload,
+                                                    ) {
+                                                        Ok(msg) => msg,
+                                                        Err(e) => {
+                                                            error!(
+                                                                "Failed to create response: {}",
+                                                                e
+                                                            );
+                                                            return;
+                                                        }
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    match ProtocolMessage::new_with_json(
+                                                        request.id,
+                                                        request.method,
+                                                        super::MessageType::Error,
+                                                        serde_json::json!({
+                                                            "message": e.to_string(),
+                                                        }),
+                                                    ) {
+                                                        Ok(msg) => msg,
+                                                        Err(e) => {
+                                                            error!(
+                                                                "Failed to create error response: {}",
+                                                                e
+                                                            );
+                                                            return;
+                                                        }
+                                                    }
+                                                }
                                             };
 
-                                            // 双方向ストリームの送信側を使ってレスポンスを送信
-                                            let response_data =
-                                                serde_json::to_vec(&response_msg).unwrap();
-                                            if let Err(e) =
-                                                send_stream.write_all(&response_data).await
-                                            {
-                                                error!("Failed to send response: {}", e);
+                                            // 双方向ストリームの送信側を使ってレスポンスをフレームとして送信
+                                            match response_msg.into_frame() {
+                                                Ok(frame) => {
+                                                    let frame_bytes = frame.to_bytes();
+                                                    if let Err(e) =
+                                                        send_stream.write_all(&frame_bytes).await
+                                                    {
+                                                        error!("Failed to send response: {}", e);
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    error!(
+                                                        "Failed to create response frame: {}",
+                                                        e
+                                                    );
+                                                }
                                             }
                                             let _ = send_stream.finish();
                                         }
                                         super::MessageType::Stream => {
+                                            let payload_value = match request.payload_as_value() {
+                                                Ok(v) => v,
+                                                Err(e) => {
+                                                    error!(
+                                                        "Failed to parse stream request payload: {}",
+                                                        e
+                                                    );
+                                                    return;
+                                                }
+                                            };
+
                                             match server
-                                                .handle_stream(&request.method, request.payload)
+                                                .handle_stream(&request.method, payload_value)
                                                 .await
                                             {
                                                 Ok(mut stream) => {
                                                     while let Some(item) = stream.next().await {
                                                         let msg = match item {
-                                                            Ok(payload) => ProtocolMessage {
-                                                                id: request.id,
-                                                                method: request.method.clone(),
-                                                                msg_type:
+                                                            Ok(payload) => {
+                                                                match ProtocolMessage::new_with_json(
+                                                                    request.id,
+                                                                    request.method.clone(),
                                                                     super::MessageType::StreamData,
-                                                                payload,
-                                                            },
-                                                            Err(e) => ProtocolMessage {
-                                                                id: request.id,
-                                                                method: request.method.clone(),
-                                                                msg_type: super::MessageType::Error,
-                                                                payload: serde_json::json!({
-                                                                    "message": e.to_string(),
-                                                                }),
-                                                            },
+                                                                    payload,
+                                                                ) {
+                                                                    Ok(msg) => msg,
+                                                                    Err(e) => {
+                                                                        error!(
+                                                                            "Failed to create stream data message: {}",
+                                                                            e
+                                                                        );
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            }
+                                                            Err(e) => {
+                                                                match ProtocolMessage::new_with_json(
+                                                                    request.id,
+                                                                    request.method.clone(),
+                                                                    super::MessageType::Error,
+                                                                    serde_json::json!({
+                                                                        "message": e.to_string(),
+                                                                    }),
+                                                                ) {
+                                                                    Ok(msg) => msg,
+                                                                    Err(e) => {
+                                                                        error!(
+                                                                            "Failed to create error message: {}",
+                                                                            e
+                                                                        );
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            }
                                                         };
 
                                                         if let Err(e) =
@@ -582,12 +666,22 @@ async fn handle_connection(connection: Connection, server: Arc<ProtocolServer>) 
                                                     }
 
                                                     // Send stream end message
-                                                    let end_msg = ProtocolMessage {
-                                                        id: request.id,
-                                                        method: request.method,
-                                                        msg_type: super::MessageType::StreamEnd,
-                                                        payload: serde_json::json!({}),
-                                                    };
+                                                    let end_msg =
+                                                        match ProtocolMessage::new_with_json(
+                                                            request.id,
+                                                            request.method,
+                                                            super::MessageType::StreamEnd,
+                                                            serde_json::json!({}),
+                                                        ) {
+                                                            Ok(msg) => msg,
+                                                            Err(e) => {
+                                                                error!(
+                                                                    "Failed to create stream end message: {}",
+                                                                    e
+                                                                );
+                                                                return;
+                                                            }
+                                                        };
 
                                                     if let Err(e) =
                                                         send_response(connection, end_msg).await
@@ -596,14 +690,24 @@ async fn handle_connection(connection: Connection, server: Arc<ProtocolServer>) 
                                                     }
                                                 }
                                                 Err(e) => {
-                                                    let error_msg = ProtocolMessage {
-                                                        id: request.id,
-                                                        method: request.method,
-                                                        msg_type: super::MessageType::Error,
-                                                        payload: serde_json::json!({
-                                                            "message": e.to_string(),
-                                                        }),
-                                                    };
+                                                    let error_msg =
+                                                        match ProtocolMessage::new_with_json(
+                                                            request.id,
+                                                            request.method,
+                                                            super::MessageType::Error,
+                                                            serde_json::json!({
+                                                                "message": e.to_string(),
+                                                            }),
+                                                        ) {
+                                                            Ok(msg) => msg,
+                                                            Err(e) => {
+                                                                error!(
+                                                                    "Failed to create error message: {}",
+                                                                    e
+                                                                );
+                                                                return;
+                                                            }
+                                                        };
 
                                                     if let Err(e) =
                                                         send_response(connection, error_msg).await
@@ -652,8 +756,10 @@ async fn handle_connection(connection: Connection, server: Arc<ProtocolServer>) 
 async fn send_response(connection: Connection, message: ProtocolMessage) -> Result<()> {
     // 双方向ストリームを使用（レスポンスチャンネルは使わないが、プロトコルの一貫性のため）
     let (mut send_stream, _recv_stream) = connection.open_bi().await?;
-    let data = serde_json::to_vec(&message)?;
-    send_stream.write_all(&data).await?;
+    // ProtocolMessageをフレームに変換して送信
+    let frame = message.into_frame()?;
+    let frame_bytes = frame.to_bytes();
+    send_stream.write_all(&frame_bytes).await?;
     send_stream.finish()?;
     Ok(())
 }
@@ -716,6 +822,7 @@ impl rustls::client::danger::ServerCertVerifier for SkipServerVerification {
 pub struct UnisonStream {
     stream_id: u64,
     method: String,
+    #[allow(dead_code)]
     connection: Arc<Connection>,
     send_stream: Arc<Mutex<Option<SendStream>>>,
     recv_stream: Arc<Mutex<Option<RecvStream>>>,
@@ -788,19 +895,21 @@ impl SystemStream for UnisonStream {
             return Err(NetworkError::Connection("Stream is not active".to_string()));
         }
 
-        let message = ProtocolMessage {
-            id: self.stream_id,
-            method: self.method.clone(),
-            msg_type: MessageType::StreamSend,
-            payload: data,
-        };
+        let message = ProtocolMessage::new_with_json(
+            self.stream_id,
+            self.method.clone(),
+            MessageType::StreamSend,
+            data,
+        )?;
 
-        let json_data = serde_json::to_vec(&message).map_err(|e| NetworkError::Serialization(e))?;
+        // ProtocolMessageをフレームに変換
+        let frame = message.into_frame()?;
+        let frame_bytes = frame.to_bytes();
 
         let mut send_guard = self.send_stream.lock().await;
         if let Some(send_stream) = send_guard.as_mut() {
             send_stream
-                .write_all(&json_data)
+                .write_all(&frame_bytes)
                 .await
                 .map_err(|e| NetworkError::Quic(format!("Failed to send data: {}", e)))?;
             Ok(())
@@ -828,20 +937,31 @@ impl SystemStream for UnisonStream {
                 return Err(NetworkError::Connection("Stream ended".to_string()));
             }
 
-            let message: ProtocolMessage =
-                serde_json::from_slice(&data).map_err(|e| NetworkError::Serialization(e))?;
+            // BytesからフレームをデシリアライズしてProtocolMessageを復元
+            let frame_bytes = bytes::Bytes::from(data);
+            let frame = ProtocolFrame::from_bytes(&frame_bytes)?;
+            let message = ProtocolMessage::from_frame(&frame)?;
 
             match message.msg_type {
-                MessageType::StreamReceive | MessageType::StreamData => Ok(message.payload),
+                MessageType::StreamReceive | MessageType::StreamData => message.payload_as_value(),
                 MessageType::StreamEnd => {
                     self.is_active.store(false, Ordering::SeqCst);
                     Err(NetworkError::Connection("Stream ended by peer".to_string()))
                 }
                 MessageType::StreamError => {
                     self.is_active.store(false, Ordering::SeqCst);
+                    let error_msg = message
+                        .payload_as_value()
+                        .ok()
+                        .and_then(|v| {
+                            v.get("message")
+                                .and_then(|m| m.as_str())
+                                .map(|s| s.to_string())
+                        })
+                        .unwrap_or_else(|| "Unknown error".to_string());
                     Err(NetworkError::Protocol(format!(
-                        "Stream error: {:?}",
-                        message.payload
+                        "Stream error: {}",
+                        error_msg
                     )))
                 }
                 _ => Err(NetworkError::Protocol(format!(

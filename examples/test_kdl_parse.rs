@@ -3,8 +3,14 @@ use kdl::KdlDocument;
 fn main() {
     let test_cases = vec![
         (r#"field "test" type="string" required=true"#, "bare true"),
-        (r#"field "test" type="string" required=#true"#, "typed #true"),
-        (r#"field "test" type="string" required="true""#, "string \"true\""),
+        (
+            r#"field "test" type="string" required=#true"#,
+            "typed #true",
+        ),
+        (
+            r#"field "test" type="string" required="true""#,
+            "string \"true\"",
+        ),
     ];
 
     for (test, desc) in test_cases {

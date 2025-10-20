@@ -46,3 +46,9 @@ assets/certs/*.der
 
 # Local files (exclude all *.local.* files)
 *.local.*
+
+# Cargo local configuration (macOS linker settings)
+.cargo/config.toml
+
+# Serena MCP server cache
+.serena/

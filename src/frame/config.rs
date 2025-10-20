@@ -1,6 +1,6 @@
-//! パケット処理の設定
+//! フレーム処理の設定
 //!
-//! 圧縮やチェックサムなどのパケット処理に関する設定を管理します。
+//! 圧縮やチェックサムなどのフレーム処理に関する設定を管理します。
 
 use serde::{Deserialize, Serialize};
 
@@ -89,13 +89,13 @@ impl Default for CompressionConfig {
 }
 
 /// チェックサムに関する設定
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct ChecksumConfig {
     /// チェックサムを有効にするかどうか
     pub enabled: bool,
 
     /// チェックサムを必須とするかどうか
-    /// trueの場合、チェックサムがないパケットは拒否されます
+    /// trueの場合、チェックサムがないフレームは拒否されます
     pub required: bool,
 }
 
@@ -130,18 +130,9 @@ impl ChecksumConfig {
     }
 }
 
-impl Default for ChecksumConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            required: false,
-        }
-    }
-}
-
-/// パケット処理の統合設定
+/// フレーム処理の統合設定
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PacketConfig {
+pub struct FrameConfig {
     /// 圧縮設定
     pub compression: CompressionConfig,
 
@@ -151,12 +142,12 @@ pub struct PacketConfig {
     /// 最大ペイロードサイズ（バイト）
     pub max_payload_size: usize,
 
-    /// パケットバージョン
+    /// フレームバージョン
     pub version: u8,
 }
 
-impl PacketConfig {
-    /// デフォルト設定で新しいPacketConfigを作成
+impl FrameConfig {
+    /// デフォルト設定で新しいFrameConfigを作成
     pub fn new() -> Self {
         Self::default()
     }
@@ -210,7 +201,7 @@ impl PacketConfig {
     }
 }
 
-impl Default for PacketConfig {
+impl Default for FrameConfig {
     fn default() -> Self {
         Self {
             compression: CompressionConfig::default(),
@@ -286,22 +277,22 @@ mod tests {
 
     #[test]
     fn test_packet_config_presets() {
-        let perf = PacketConfig::high_performance();
+        let perf = FrameConfig::high_performance();
         assert!(!perf.compression.enabled);
         assert!(!perf.checksum.enabled);
 
-        let reliable = PacketConfig::high_reliability();
+        let reliable = FrameConfig::high_reliability();
         assert!(reliable.compression.enabled);
         assert!(reliable.checksum.required);
 
-        let low_bw = PacketConfig::low_bandwidth();
+        let low_bw = FrameConfig::low_bandwidth();
         assert_eq!(low_bw.compression.level, 9);
         assert!(low_bw.checksum.enabled);
     }
 
     #[test]
     fn test_packet_config_builder() {
-        let config = PacketConfig::new()
+        let config = FrameConfig::new()
             .with_compression(CompressionConfig::fast())
             .with_checksum(ChecksumConfig::required())
             .with_max_payload_size(1024 * 1024);

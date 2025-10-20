@@ -1,11 +1,12 @@
+use super::CodeGenerator;
+use crate::parser::{
+    DefaultValue, Enum, Field, FieldType, Message, Method, MethodMessage, ParsedSchema, Protocol,
+    Service, Stream, TypeRegistry,
+};
 use anyhow::Result;
 use convert_case::{Case, Casing};
-use crate::parser::{
-    ParsedSchema, TypeRegistry, Protocol, Service, Method, Stream,
-    Message, Field, FieldType, Enum, DefaultValue
-};
-use super::CodeGenerator;
 
+#[derive(Default)]
 pub struct TypeScriptGenerator;
 
 impl TypeScriptGenerator {
@@ -20,7 +21,7 @@ impl CodeGenerator for TypeScriptGenerator {
 
         // インポート文を追加
         code.push_str(&self.generate_imports());
-        code.push_str("\n");
+        code.push('\n');
 
         // 列挙型を生成
         for enum_def in &schema.enums {
@@ -51,9 +52,10 @@ impl TypeScriptGenerator {
 export type Timestamp = string; // ISO-8601 format
 export type UUID = string;
 export type LanguageCode = string; // ISO 639-1 format
-"#.to_string()
+"#
+        .to_string()
     }
-    
+
     fn generate_protocol(&self, protocol: &Protocol, type_registry: &TypeRegistry) -> String {
         let mut code = String::new();
 
@@ -83,20 +85,18 @@ export type LanguageCode = string; // ISO 639-1 format
 
         code
     }
-    
+
     fn generate_enum(&self, enum_def: &Enum) -> String {
         let name = &enum_def.name;
-        let values: Vec<String> = enum_def.values.iter()
+        let values: Vec<String> = enum_def
+            .values
+            .iter()
             .map(|v| format!("  {} = '{}',", v.to_case(Case::Pascal), v))
             .collect();
-        
-        format!(
-            "export enum {} {{\n{}\n}}",
-            name,
-            values.join("\n")
-        )
+
+        format!("export enum {} {{\n{}\n}}", name, values.join("\n"))
     }
-    
+
     fn generate_message(&self, message: &Message, type_registry: &TypeRegistry) -> String {
         // インラインメッセージはスキップ
         if message.name.starts_with("_inline_") {
@@ -104,51 +104,57 @@ export type LanguageCode = string; // ISO 639-1 format
         }
 
         let name = &message.name;
-        let fields: Vec<String> = message.fields.iter()
+        let fields: Vec<String> = message
+            .fields
+            .iter()
             .map(|f| self.generate_field(f, type_registry))
             .collect();
 
-        format!(
-            "export interface {} {{\n{}\n}}",
-            name,
-            fields.join("\n")
-        )
+        format!("export interface {} {{\n{}\n}}", name, fields.join("\n"))
     }
-    
+
     fn generate_field(&self, field: &Field, type_registry: &TypeRegistry) -> String {
         let name = &field.name;
         let ts_type = self.field_type_to_typescript(&field.field_type(), type_registry);
-        
+
         let optional = if !field.required { "?" } else { "" };
-        
+
         let mut field_def = format!("  {}{}: {};", name, optional, ts_type);
 
         // 制約とデフォルト値のJSDocコメントを追加
         let mut comments = Vec::new();
-        
+
         if let Some(default) = &field.default() {
-            comments.push(format!("@default {}", self.default_value_to_string(default)));
+            comments.push(format!(
+                "@default {}",
+                self.default_value_to_string(default)
+            ));
         }
-        
+
         if field.constraints().min.is_some() || field.constraints().max.is_some() {
             if let (Some(min), Some(max)) = (field.constraints().min, field.constraints().max) {
                 comments.push(format!("@minimum {} @maximum {}", min, max));
             }
         }
-        
+
         if let Some(pattern) = &field.constraints().pattern {
             comments.push(format!("@pattern {}", pattern));
         }
-        
+
         if !comments.is_empty() {
             let comment = format!("  /** {} */\n", comments.join(" "));
             field_def = format!("{}{}", comment, field_def);
         }
-        
+
         field_def
     }
-    
-    fn field_type_to_typescript(&self, field_type: &FieldType, type_registry: &TypeRegistry) -> String {
+
+    #[allow(clippy::only_used_in_recursion)]
+    fn field_type_to_typescript(
+        &self,
+        field_type: &FieldType,
+        type_registry: &TypeRegistry,
+    ) -> String {
         match field_type {
             FieldType::String => "string".to_string(),
             FieldType::Int | FieldType::Float => "number".to_string(),
@@ -158,32 +164,33 @@ export type LanguageCode = string; // ISO 639-1 format
                 format!("{}[]", self.field_type_to_typescript(inner, type_registry))
             }
             FieldType::Map(_, value) => {
-                format!("Record<string, {}>", self.field_type_to_typescript(value, type_registry))
+                format!(
+                    "Record<string, {}>",
+                    self.field_type_to_typescript(value, type_registry)
+                )
             }
-            FieldType::Enum(values) => {
-                values.iter()
-                    .map(|v| format!("'{}'", v))
-                    .collect::<Vec<_>>()
-                    .join(" | ")
-            }
+            FieldType::Enum(values) => values
+                .iter()
+                .map(|v| format!("'{}'", v))
+                .collect::<Vec<_>>()
+                .join(" | "),
             FieldType::Custom(name) => {
-                type_registry.get_typescript_type(name)
-                    .unwrap_or_else(|| {
-                        // snake_caseをTypeScriptの型用にPascalCaseへ変換
-                        if name == "timestamp" {
-                            "Timestamp".to_string()
-                        } else if name == "uuid" {
-                            "UUID".to_string()
-                        } else if name == "language_code" {
-                            "LanguageCode".to_string()
-                        } else {
-                            name.to_case(Case::Pascal)
-                        }
-                    })
+                type_registry.get_typescript_type(name).unwrap_or_else(|| {
+                    // snake_caseをTypeScriptの型用にPascalCaseへ変換
+                    if name == "timestamp" {
+                        "Timestamp".to_string()
+                    } else if name == "uuid" {
+                        "UUID".to_string()
+                    } else if name == "language_code" {
+                        "LanguageCode".to_string()
+                    } else {
+                        name.to_case(Case::Pascal)
+                    }
+                })
             }
         }
     }
-    
+
     fn default_value_to_string(&self, default: &DefaultValue) -> String {
         match default {
             DefaultValue::String(s) => format!("'{}'", s),
@@ -195,11 +202,11 @@ export type LanguageCode = string; // ISO 639-1 format
             DefaultValue::Object(_) => "{}".to_string(),
         }
     }
-    
+
     fn generate_service(&self, service: &Service, type_registry: &TypeRegistry) -> String {
         let service_name = format!("{}Service", service.name);
         let client_name = format!("{}Client", service.name);
-        
+
         let mut code = String::new();
 
         // インラインメッセージのリクエスト/レスポンス型を生成
@@ -221,136 +228,128 @@ export type LanguageCode = string; // ISO 639-1 format
         // クライアントクラスを生成
         code.push_str(&format!("export class {} {{\n", client_name));
         code.push_str("  constructor(private readonly transport: WebSocketTransport) {}\n\n");
-        
+
         for method in &service.methods {
             code.push_str(&self.generate_client_method(method, type_registry));
         }
-        
+
         for stream in &service.streams {
             code.push_str(&self.generate_client_stream(stream, type_registry));
         }
-        
+
         code.push_str("}\n");
-        
+
         code
     }
-    
+
     fn generate_inline_types(&self, service: &Service, type_registry: &TypeRegistry) -> String {
         let mut code = String::new();
-        
+
         for method in &service.methods {
             if let Some(request) = &method.request {
-                if request.name.starts_with("_inline_") {
-                    let type_name = format!("{}Request", method.name.to_case(Case::Pascal));
-                    code.push_str(&self.generate_inline_message(&type_name, request, type_registry));
-                    code.push_str("\n\n");
-                }
+                let type_name = format!("{}Request", method.name.to_case(Case::Pascal));
+                code.push_str(&self.generate_inline_message(&type_name, request, type_registry));
+                code.push_str("\n\n");
             }
-            
+
             if let Some(response) = &method.response {
-                if response.name.starts_with("_inline_") {
-                    let type_name = format!("{}Response", method.name.to_case(Case::Pascal));
-                    code.push_str(&self.generate_inline_message(&type_name, response, type_registry));
-                    code.push_str("\n\n");
-                }
+                let type_name = format!("{}Response", method.name.to_case(Case::Pascal));
+                code.push_str(&self.generate_inline_message(&type_name, response, type_registry));
+                code.push_str("\n\n");
             }
         }
-        
+
         for stream in &service.streams {
             if let Some(request) = &stream.request {
-                if request.name.starts_with("_inline_") {
-                    let type_name = format!("{}Request", stream.name.to_case(Case::Pascal));
-                    code.push_str(&self.generate_inline_message(&type_name, request, type_registry));
-                    code.push_str("\n\n");
-                }
+                let type_name = format!("{}Request", stream.name.to_case(Case::Pascal));
+                code.push_str(&self.generate_inline_message(&type_name, request, type_registry));
+                code.push_str("\n\n");
             }
-            
+
             if let Some(response) = &stream.response {
-                if response.name.starts_with("_inline_") {
-                    let type_name = format!("{}Response", stream.name.to_case(Case::Pascal));
-                    code.push_str(&self.generate_inline_message(&type_name, response, type_registry));
-                    code.push_str("\n\n");
-                }
+                let type_name = format!("{}Response", stream.name.to_case(Case::Pascal));
+                code.push_str(&self.generate_inline_message(&type_name, response, type_registry));
+                code.push_str("\n\n");
             }
         }
-        
+
         code
     }
-    
-    fn generate_inline_message(&self, name: &str, message: &Message, type_registry: &TypeRegistry) -> String {
-        let fields: Vec<String> = message.fields.iter()
+
+    fn generate_inline_message(
+        &self,
+        name: &str,
+        message: &MethodMessage,
+        type_registry: &TypeRegistry,
+    ) -> String {
+        let fields: Vec<String> = message
+            .fields
+            .iter()
             .map(|f| self.generate_field(f, type_registry))
             .collect();
-        
-        format!(
-            "export interface {} {{\n{}\n}}",
-            name,
-            fields.join("\n")
-        )
+
+        format!("export interface {} {{\n{}\n}}", name, fields.join("\n"))
     }
-    
+
     fn generate_service_method(&self, method: &Method, _type_registry: &TypeRegistry) -> String {
         let name = method.name.to_case(Case::Camel);
         let request_type = self.get_method_type_name(&method.request, &method.name, "Request");
         let response_type = self.get_method_type_name(&method.response, &method.name, "Response");
-        
-        format!("  {}(request: {}): Promise<{}>;\n", name, request_type, response_type)
+
+        format!(
+            "  {}(request: {}): Promise<{}>;\n",
+            name, request_type, response_type
+        )
     }
-    
+
     fn generate_service_stream(&self, stream: &Stream, _type_registry: &TypeRegistry) -> String {
         let name = stream.name.to_case(Case::Camel);
         let request_type = self.get_method_type_name(&stream.request, &stream.name, "Request");
         let response_type = self.get_method_type_name(&stream.response, &stream.name, "Response");
-        
+
         format!(
             "  {}(request: {}): AsyncIterableIterator<{}>;\n",
-            name,
-            request_type,
-            response_type
+            name, request_type, response_type
         )
     }
-    
+
     fn generate_client_method(&self, method: &Method, _type_registry: &TypeRegistry) -> String {
         let name = method.name.to_case(Case::Camel);
         let request_type = self.get_method_type_name(&method.request, &method.name, "Request");
         let response_type = self.get_method_type_name(&method.response, &method.name, "Response");
-        
+
         format!(
             r#"  async {}(request: {}): Promise<{}> {{
     return this.transport.call('{}', request);
   }}
 "#,
-            name,
-            request_type,
-            response_type,
-            method.name
+            name, request_type, response_type, method.name
         )
     }
-    
+
     fn generate_client_stream(&self, stream: &Stream, _type_registry: &TypeRegistry) -> String {
         let name = stream.name.to_case(Case::Camel);
         let request_type = self.get_method_type_name(&stream.request, &stream.name, "Request");
         let response_type = self.get_method_type_name(&stream.response, &stream.name, "Response");
-        
+
         format!(
             r#"  async *{}(request: {}): AsyncIterableIterator<{}> {{
     yield* this.transport.stream('{}', request);
   }}
 "#,
-            name,
-            request_type,
-            response_type,
-            stream.name
+            name, request_type, response_type, stream.name
         )
     }
-    
-    fn get_method_type_name(&self, message: &Option<Message>, method_name: &str, suffix: &str) -> String {
-        if let Some(msg) = message {
-            if msg.name.starts_with("_inline_") {
-                format!("{}{}", method_name.to_case(Case::Pascal), suffix)
-            } else {
-                msg.name.clone()
-            }
+
+    fn get_method_type_name(
+        &self,
+        message: &Option<MethodMessage>,
+        method_name: &str,
+        suffix: &str,
+    ) -> String {
+        if message.is_some() {
+            // MethodMessage は常にインラインなので、メソッド名ベースの型名を生成
+            format!("{}{}", method_name.to_case(Case::Pascal), suffix)
         } else {
             "void".to_string()
         }
@@ -382,7 +381,7 @@ export class WebSocketTransportImpl implements WebSocketTransport {
   async connect(url: string): Promise<void> {
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(url);
-      
+
       this.ws.onopen = () => resolve();
       this.ws.onerror = (error) => reject(error);
       this.ws.onmessage = (event) => this.handleMessage(event);
@@ -481,7 +480,7 @@ export class WebSocketTransportImpl implements WebSocketTransport {
   private handleMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
-      
+
       if (data.type === 'response') {
         const handler = this.pendingRequests.get(data.id);
         if (handler) {
