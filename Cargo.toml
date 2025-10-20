@@ -1,6 +1,6 @@
 [package]
 name = "unison-protocol"
-version = "0.1.0-alpha2"
+version = "0.1.0-alpha3"
 edition = "2024"
 authors = ["Mako<mito@chronista.club>"]
 description = "Type-safe communication protocol framework powered by KDL schema and QUIC transport"
