@@ -271,12 +271,13 @@ async fn test_handler_registry() {
     assert!(methods.contains(&"test_method".to_string()));
 
     // メッセージディスパッチのテスト
-    let message = ProtocolMessage {
-        id: 1,
-        method: "test_method".to_string(),
-        msg_type: MessageType::Request,
-        payload: serde_json::json!({}),
-    };
+    let message = ProtocolMessage::new_with_json(
+        1,
+        "test_method".to_string(),
+        MessageType::Request,
+        serde_json::json!({}),
+    )
+    .unwrap();
 
     let result = registry.dispatch(message).await;
     assert!(result.is_ok());
@@ -289,12 +290,13 @@ async fn test_handler_not_found() {
 
     let registry = HandlerRegistry::new();
 
-    let message = ProtocolMessage {
-        id: 1,
-        method: "unknown_method".to_string(),
-        msg_type: MessageType::Request,
-        payload: serde_json::json!({}),
-    };
+    let message = ProtocolMessage::new_with_json(
+        1,
+        "unknown_method".to_string(),
+        MessageType::Request,
+        serde_json::json!({}),
+    )
+    .unwrap();
 
     let result = registry.dispatch(message).await;
     assert!(result.is_err());
