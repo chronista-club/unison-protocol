@@ -1,6 +1,8 @@
 [workspace]
 members = [
-    "crates/unison",
+    "crates/unison-protocol",
+    "crates/unison-network",
+    "crates/unison-cli",
 ]
 resolver = "2"
 
@@ -50,6 +52,9 @@ bytes = "1.10"
 rkyv = { version = "0.7", features = ["validation", "alloc", "size_32"] }
 zstd = "0.13"
 crc32fast = "1.4"
+
+# CLI
+clap = { version = "4.5", features = ["derive", "cargo", "color"] }
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
