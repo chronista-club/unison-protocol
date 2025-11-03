@@ -5,7 +5,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/oraios/serena",
+        "serena-agent",
         "serena-mcp-server",
         "--enable-web-dashboard",
         "false",
