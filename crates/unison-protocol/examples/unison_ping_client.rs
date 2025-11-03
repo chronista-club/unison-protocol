@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
     let mut protocol = UnisonProtocol::new();
 
     // Load the ping-pong protocol schema
-    protocol.load_schema(include_str!("../schemas/ping_pong.kdl"))?;
+    protocol.load_schema(include_str!("../../../schemas/ping_pong.kdl"))?;
 
     // Create client
     let mut client = protocol.create_client()?;

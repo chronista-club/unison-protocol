@@ -44,7 +44,7 @@ async fn run_test_server() -> Result<()> {
 
     // Unison protocolインスタンス作成
     let mut protocol = UnisonProtocol::new();
-    protocol.load_schema(include_str!("../schemas/ping_pong.kdl"))?;
+    protocol.load_schema(include_str!("../../../schemas/ping_pong.kdl"))?;
 
     // サーバー作成とハンドラー登録
     let mut server = protocol.create_server();
@@ -69,7 +69,7 @@ async fn run_test_client() -> Result<()> {
 
     // Unison protocolインスタンス作成
     let mut protocol = UnisonProtocol::new();
-    protocol.load_schema(include_str!("../schemas/ping_pong.kdl"))?;
+    protocol.load_schema(include_str!("../../../schemas/ping_pong.kdl"))?;
 
     // クライアント作成と接続
     let mut client = protocol.create_client()?;

@@ -1,0 +1,97 @@
+[package]
+name = "unison-protocol"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Type-safe communication protocol framework powered by KDL schema and QUIC transport"
+keywords = ["protocol", "kdl", "quic", "streaming", "realtime"]
+categories = ["network-programming", "web-programming", "api-bindings"]
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+exclude = [
+    "assets/certs/*.pem",
+    "assets/certs/*.der",
+    ".github/*",
+    "docs/*",
+    "benches/*",
+    "tests/*"
+]
+rust-version.workspace = true
+
+[dependencies]
+miette.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+bincode.workspace = true
+
+# Code generation
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+convert_case.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# QUIC support
+quinn.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+rcgen.workspace = true
+rust-embed.workspace = true
+futures-util.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Context-Generic Programming
+cgp.workspace = true
+cgp-component.workspace = true
+
+# Packet module dependencies
+bytes.workspace = true
+rkyv.workspace = true
+zstd.workspace = true
+crc32fast.workspace = true
+
+# Utilities
+chrono.workspace = true
+uuid.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+async-stream.workspace = true
+indexmap.workspace = true
+scc.workspace = true
+tempfile.workspace = true
+kdl.workspace = true
+knuffel.workspace = true
+
+[build-dependencies]
+kdl.workspace = true
+miette.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+convert_case.workspace = true
+anyhow.workspace = true
+rcgen.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tokio-test.workspace = true
+criterion.workspace = true
+hdrhistogram.workspace = true
+
+[[bench]]
+name = "quic_performance"
+harness = false
+
+[[bench]]
+name = "throughput"
+harness = false
