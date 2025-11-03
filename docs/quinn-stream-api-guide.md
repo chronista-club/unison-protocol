@@ -321,7 +321,7 @@ match recv_stream.read(&mut buf).await {
 ## プロジェクトでの実装例
 
 ```rust
-// unison-protocolでの最適化例
+// unisonでの最適化例
 impl UnisonStream {
     async fn send_optimized(&mut self, messages: Vec<ProtocolMessage>) -> Result<()> {
         let mut chunks = Vec::new();

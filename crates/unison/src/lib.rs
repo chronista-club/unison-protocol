@@ -17,7 +17,7 @@
 //! # use anyhow::Result;
 //! # #[tokio::main]
 //! # async fn main() -> Result<()> {
-//! use unison_protocol::{UnisonProtocol, UnisonServer, UnisonServerExt, NetworkError};
+//! use unison::{UnisonProtocol, UnisonServer, UnisonServerExt, NetworkError};
 //!
 //! // プロトコルスキーマを読み込み
 //! let mut protocol = UnisonProtocol::new();
@@ -149,7 +149,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_unison_protocol_creation() {
+    fn test_unison_creation() {
         let protocol = UnisonProtocol::new();
         assert_eq!(protocol.schemas.len(), 0);
     }

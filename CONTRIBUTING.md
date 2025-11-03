@@ -31,13 +31,13 @@ Unison Protocol への貢献に興味を持っていただきありがとうご�
 1. GitHub でリポジトリをフォーク
 2. フォークをローカルにクローン：
    ```bash
-   git clone https://github.com/your-username/unison-protocol.git
-   cd unison-protocol
+   git clone https://github.com/your-username/unison.git
+   cd unison
    ```
 
 3. アップストリームリポジトリをリモートとして追加：
    ```bash
-   git remote add upstream https://github.com/chronista-club/unison-protocol.git
+   git remote add upstream https://github.com/chronista-club/unison.git
    ```
 
 4. **(macOS のみ)** LLD リンカーをインストールして設定：
@@ -226,13 +226,13 @@ cargo doc --document-private-items
 
 - GitHub Issues: バグレポートと機能リクエスト
 - GitHub Discussions: 一般的な議論と Q&A
-- Discord: [Discord サーバーに参加](https://discord.gg/unison-protocol)（準備中）
+- Discord: [Discord サーバーに参加](https://discord.gg/unison)（準備中）
 
 ### ヘルプを得る
 
 ヘルプが必要な場合：
 
-1. [ドキュメント](https://docs.rs/unison-protocol)を確認
+1. [ドキュメント](https://docs.rs/unison)を確認
 2. 既存の Issue を検索
 3. GitHub Discussions で質問
 4. Discord でお問い合わせ

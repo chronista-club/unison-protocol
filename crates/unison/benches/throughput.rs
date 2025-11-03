@@ -4,10 +4,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tokio::runtime::Runtime;
-use unison_protocol::network::{
+use unison::network::{
     NetworkError, UnisonClient, UnisonServer, UnisonServerExt, quic::QuicClient,
 };
-use unison_protocol::{ProtocolClient, ProtocolServer};
+use unison::{ProtocolClient, ProtocolServer};
 
 /// バッチサイズのバリエーション
 const BATCH_SIZES: &[u64] = &[1, 10, 100, 1000];

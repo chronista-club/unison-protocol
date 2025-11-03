@@ -2,9 +2,9 @@
 
 *次世代型の型安全通信プロトコルフレームワーク*
 
-[![Crates.io](https://img.shields.io/crates/v/unison-protocol.svg)](https://crates.io/crates/unison-protocol)
-[![Documentation](https://docs.rs/unison-protocol/badge.svg)](https://docs.rs/unison-protocol)
-[![Build Status](https://github.com/chronista-club/unison-protocol/workflows/CI/badge.svg)](https://github.com/chronista-club/unison-protocol/actions)
+[![Crates.io](https://img.shields.io/crates/v/unison.svg)](https://crates.io/crates/unison)
+[![Documentation](https://docs.rs/unison/badge.svg)](https://docs.rs/unison)
+[![Build Status](https://github.com/chronista-club/unison/workflows/CI/badge.svg)](https://github.com/chronista-club/unison/actions)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 
@@ -32,7 +32,7 @@
 
 ```toml
 [dependencies]
-unison-protocol = "^0.1"
+unison = "^0.1"
 tokio = { version = "1.40", features = ["full"] }
 serde_json = "1.0"
 anyhow = "1.0"
@@ -66,7 +66,7 @@ protocol "my-service" version="1.0.0" {
 #### 2. サーバー実装
 
 ```rust
-use unison_protocol::{ProtocolServer, NetworkError};
+use unison::{ProtocolServer, NetworkError};
 use serde_json::json;
 
 #[tokio::main]
@@ -94,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 #### 3. クライアント実装
 
 ```rust
-use unison_protocol::ProtocolClient;
+use unison::ProtocolClient;
 use serde_json::json;
 
 #[tokio::main]
@@ -120,7 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### コンポーネント構造
 
 ```
-unison-protocol/
+unison/
 ├── 🎯 コア層
 │   ├── parser/          # KDLスキーマパーサー
 │   ├── codegen/        # コードジェネレーター (Rust/TypeScript)
@@ -230,7 +230,7 @@ RUST_LOG=debug cargo test -- --nocapture
 ### UnisonPacketによる効率的な通信
 
 ```rust
-use unison_protocol::packet::{UnisonPacket, Payloadable};
+use unison::packet::{UnisonPacket, Payloadable};
 
 // カスタムペイロード定義
 #[derive(Archive, Serialize, Deserialize, Debug)]
@@ -267,7 +267,7 @@ let received_payload = received_packet.extract_payload()?;
 ### カスタムハンドラー実装
 
 ```rust
-use unison_protocol::context::{Handler, HandlerRegistry};
+use unison::context::{Handler, HandlerRegistry};
 
 struct MyCustomHandler;
 
@@ -287,7 +287,7 @@ registry.register("custom", MyCustomHandler).await;
 ### ストリーミング通信
 
 ```rust
-use unison_protocol::network::UnisonStream;
+use unison::network::UnisonStream;
 
 // ストリームの作成
 let mut stream = client.start_system_stream("data_feed", json!({})).await?;
@@ -314,7 +314,7 @@ println!("アクティブストリーム: {}", stats.active_streams);
 
 ## 📚 ドキュメント
 
-- [APIリファレンス](https://docs.rs/unison-protocol)
+- [APIリファレンス](https://docs.rs/unison)
 - [プロトコル仕様](PROTOCOL_SPEC.md)
 - [アーキテクチャガイド](docs/ja/architecture.md)
 - [パケットモジュール仕様](docs/ja/packet.md)
@@ -332,8 +332,8 @@ println!("アクティブストリーム: {}", stats.active_streams);
 
 ```bash
 # リポジトリのクローン
-git clone https://github.com/chronista-club/unison-protocol
-cd unison-protocol
+git clone https://github.com/chronista-club/unison
+cd unison
 
 # macOSの場合: LLDリンカーをインストール（テスト実行に必要）
 brew install lld
@@ -392,4 +392,4 @@ MIT License - 詳細は [LICENSE](LICENSE) ファイルを参照してくださ�
 
 **Unison Protocol** - *言語とプラットフォームを越えた通信の調和* 🎵
 
-[GitHub](https://github.com/chronista-club/unison-protocol) | [Crates.io](https://crates.io/crates/unison-protocol) | [Discord](https://discord.gg/unison-protocol)
+[GitHub](https://github.com/chronista-club/unison) | [Crates.io](https://crates.io/crates/unison) | [Discord](https://discord.gg/unison)

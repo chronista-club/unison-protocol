@@ -4,8 +4,8 @@ use serde_json::json;
 use std::time::Instant;
 use tracing::{Level, info};
 use tracing_subscriber;
-use unison_protocol::network::UnisonClient;
-use unison_protocol::{ProtocolClient, UnisonProtocol};
+use unison::network::UnisonClient;
+use unison::{ProtocolClient, UnisonProtocol};
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -5,7 +5,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 use tracing::{Level, info};
 
-use unison_protocol::network::{
+use unison::network::{
     NetworkError, Service, ServiceConfig, ServicePriority, StreamHandle, SystemStream,
     UnisonService, UnisonStream,
 };

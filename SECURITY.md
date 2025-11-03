@@ -114,7 +114,7 @@ Unison Protocol には複数のセキュリティ機能が含まれています�
 
 セキュリティ関連の質問や懸念事項：
 - **メール**: security@chronista.club
-- **GitHub セキュリティアドバイザリ**: [アドバイザリを見る](https://github.com/chronista-club/unison-protocol/security/advisories)
+- **GitHub セキュリティアドバイザリ**: [アドバイザリを見る](https://github.com/chronista-club/unison/security/advisories)
 
 ## 謝辞
 

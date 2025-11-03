@@ -232,7 +232,7 @@ if payload_size >= COMPRESSION_THRESHOLD {
 RUST_LOG=debug cargo run
 
 # 特定モジュールのみ
-RUST_LOG=unison_protocol::packet=trace cargo run
+RUST_LOG=unison::packet=trace cargo run
 ```
 
 ### よくある問題

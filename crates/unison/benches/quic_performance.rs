@@ -5,10 +5,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use tokio::sync::Barrier;
-use unison_protocol::network::{
+use unison::network::{
     NetworkError, UnisonClient, UnisonServer, UnisonServerExt, quic::QuicClient,
 };
-use unison_protocol::{ProtocolClient, ProtocolServer};
+use unison::{ProtocolClient, ProtocolServer};
 
 /// メッセージサイズのバリエーション
 const MESSAGE_SIZES: &[usize] = &[64, 256, 1024, 4096, 16384];

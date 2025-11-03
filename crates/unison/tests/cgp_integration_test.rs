@@ -3,11 +3,11 @@
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use unison_protocol::context::{
+use unison::context::{
     CgpProtocolContext, Handler, HandlerRegistry, MessageHandler, QuicTransportAdapter,
     ServiceRegistry, ServiceRegistryAdapter, TransportLayer, UnisonContextBuilder,
 };
-use unison_protocol::network::{MessageType, NetworkError, ProtocolMessage};
+use unison::network::{MessageType, NetworkError, ProtocolMessage};
 
 // ========================================
 // モックTransportLayer実装
@@ -241,7 +241,7 @@ async fn test_message_handler() {
 
 #[tokio::test]
 async fn test_handler_registry() {
-    use unison_protocol::context::MessageDispatcher;
+    use unison::context::MessageDispatcher;
 
     let registry = HandlerRegistry::new();
 
@@ -286,7 +286,7 @@ async fn test_handler_registry() {
 
 #[tokio::test]
 async fn test_handler_not_found() {
-    use unison_protocol::context::MessageDispatcher;
+    use unison::context::MessageDispatcher;
 
     let registry = HandlerRegistry::new();
 

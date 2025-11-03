@@ -62,7 +62,7 @@ src/packet/
 ### 基本的な使用例
 
 ```rust
-use unison_protocol::packet::{UnisonPacket, StringPayload};
+use unison::packet::{UnisonPacket, StringPayload};
 
 // ペイロードの作成
 let payload = StringPayload::from_str("Hello, Unison!");
@@ -92,7 +92,7 @@ println!("メッセージ: {}", restored_payload.data);
 ### ゼロコピー読み取り
 
 ```rust
-use unison_protocol::packet::{UnisonPacketView, BytesPayload};
+use unison::packet::{UnisonPacketView, BytesPayload};
 
 // パケットビューの作成（コピーなし）
 let view = UnisonPacketView::from_bytes(&bytes)?;
@@ -111,7 +111,7 @@ let archived = packet.payload_zero_copy(&mut buffer)?;
 
 ```rust
 use rkyv::{Archive, Deserialize, Serialize};
-use unison_protocol::packet::Payloadable;
+use unison::packet::Payloadable;
 
 #[derive(Archive, Deserialize, Serialize, Debug)]
 #[archive(check_bytes)]
@@ -324,4 +324,4 @@ fn test_large_payload_compression() {
 
 - [アーキテクチャガイド](./architecture.md)
 - [PROTOCOL_SPEC](../../PROTOCOL_SPEC.md)
-- [API Reference](https://docs.rs/unison-protocol)
+- [API Reference](https://docs.rs/unison)

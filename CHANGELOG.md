@@ -98,7 +98,7 @@
 
 ### リポジトリ構造
 ```
-unison-protocol/
+unison/
 ├── .github/workflows/ci.yml    # GitHub Actions CI with Rust matrix testing
 ├── .gitignore                  # Git ignore rules
 ├── Cargo.toml                  # Rust package with QUIC dependencies
@@ -144,7 +144,7 @@ unison-protocol/
 - **リソース**: CPU/メモリ使用量の最適化
 
 ### 今後の予定（ロードマップ）
-- [ ] crates.ioへ `unison-protocol` v0.1.0 として公開
+- [ ] crates.ioへ `unison` v0.1.0 として公開
 - [ ] WebTransport APIサポート付きTypeScript/JavaScriptコード生成
 - [ ] aioquic統合によるPythonバインディング
 - [ ] quic-go統合によるGoバインディング

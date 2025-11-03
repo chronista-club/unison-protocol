@@ -25,7 +25,7 @@ async fn test_simple_quic_functionality() -> Result<()> {
 }
 
 async fn test_quic_server_config() -> Result<()> {
-    use unison_protocol::network::quic::QuicServer;
+    use unison::network::quic::QuicServer;
 
     info!("🔧 Testing QUIC server configuration");
 
@@ -37,7 +37,7 @@ async fn test_quic_server_config() -> Result<()> {
 }
 
 async fn test_quic_client_config() -> Result<()> {
-    use unison_protocol::network::quic::QuicClient;
+    use unison::network::quic::QuicClient;
 
     info!("🔧 Testing QUIC client configuration");
 
@@ -49,7 +49,7 @@ async fn test_quic_client_config() -> Result<()> {
 }
 
 async fn test_certificate_loading() -> Result<()> {
-    use unison_protocol::network::quic::QuicServer;
+    use unison::network::quic::QuicServer;
 
     info!("🔐 Testing certificate loading");
 
@@ -73,7 +73,7 @@ async fn test_certificate_loading() -> Result<()> {
 async fn test_embedded_certificates_integration() -> Result<()> {
     info!("🔐 Testing embedded certificates integration");
 
-    use unison_protocol::network::quic::QuicServer;
+    use unison::network::quic::QuicServer;
 
     // Test embedded certificate loading
     let embedded_result = QuicServer::load_cert_embedded();
@@ -109,7 +109,7 @@ async fn test_embedded_certificates_integration() -> Result<()> {
 async fn test_quic_transport_settings() -> Result<()> {
     info!("⚙️ Testing QUIC transport settings");
 
-    use unison_protocol::network::quic::{QuicClient, QuicServer};
+    use unison::network::quic::{QuicClient, QuicServer};
 
     // Test server transport configuration
     let server_config = QuicServer::configure_server().await?;
@@ -136,7 +136,7 @@ async fn test_build_time_certificate_generation() -> Result<()> {
         info!("✅ Build-time certificates found in assets/certs/");
 
         // Test loading from external files
-        use unison_protocol::network::quic::QuicServer;
+        use unison::network::quic::QuicServer;
         let file_result = QuicServer::load_cert_from_files(
             "assets/certs/cert.pem",
             "assets/certs/private_key.der",
@@ -166,7 +166,7 @@ async fn test_build_time_certificate_generation() -> Result<()> {
 async fn test_performance_optimizations() -> Result<()> {
     info!("⚡ Testing performance optimizations");
 
-    use unison_protocol::network::quic::{QuicClient, QuicServer};
+    use unison::network::quic::{QuicClient, QuicServer};
 
     // Test that configurations are optimized for real-time communication
     let server_config = QuicServer::configure_server().await?;

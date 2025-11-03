@@ -3,8 +3,8 @@ use serde_json::json;
 use std::time::{Duration, Instant};
 use tokio::time::timeout;
 use tracing::{Level, info};
-use unison_protocol::network::{NetworkError, UnisonClient, UnisonServer, UnisonServerExt};
-use unison_protocol::{ProtocolClient, ProtocolServer, UnisonProtocol};
+use unison::network::{NetworkError, UnisonClient, UnisonServer, UnisonServerExt};
+use unison::{ProtocolClient, ProtocolServer, UnisonProtocol};
 
 /// QUIC統合テスト - サーバーとクライアントを同一プロセスでテスト
 /// TODO: Fix ping_pong.kdl schema parsing
@@ -327,7 +327,7 @@ async fn test_rust_embed_certificates() -> Result<()> {
     info!("🔐 Testing rust-embed certificate loading");
 
     // QuicServerのcert loading methodを直接テスト
-    use unison_protocol::network::quic::QuicServer;
+    use unison::network::quic::QuicServer;
 
     let result = QuicServer::load_cert_embedded();
     match result {
@@ -356,7 +356,7 @@ async fn test_rust_embed_certificates() -> Result<()> {
 async fn test_quic_configuration() -> Result<()> {
     info!("🔧 Testing QUIC configuration");
 
-    use unison_protocol::network::quic::{QuicClient, QuicServer};
+    use unison::network::quic::{QuicClient, QuicServer};
 
     // Server configuration test
     let server_config = QuicServer::configure_server().await;

@@ -60,7 +60,7 @@ chmod 644 assets/certs/cert.*
 ### 自動検出（推奨）
 
 ```rust
-use unison_protocol::network::quic::QuicServer;
+use unison::network::quic::QuicServer;
 
 // 証明書が存在する場合は自動読み込み、なければ自動生成
 let (certs, private_key) = QuicServer::load_cert_auto()?;
@@ -69,7 +69,7 @@ let (certs, private_key) = QuicServer::load_cert_auto()?;
 ### 明示的な読み込み
 
 ```rust
-use unison_protocol::network::quic::QuicServer;
+use unison::network::quic::QuicServer;
 
 // 証明書ファイルから読み込み
 let (certs, private_key) = QuicServer::load_cert_from_files(
@@ -81,7 +81,7 @@ let (certs, private_key) = QuicServer::load_cert_from_files(
 ### 自動生成
 
 ```rust
-use unison_protocol::network::quic::QuicServer;
+use unison::network::quic::QuicServer;
 
 // 動的に自己署名証明書を生成
 let (certs, private_key) = QuicServer::generate_self_signed_cert()?;

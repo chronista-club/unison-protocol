@@ -4,8 +4,8 @@ use serde_json::json;
 use std::time::{Duration, Instant};
 use tracing::{Level, info};
 use tracing_subscriber;
-use unison_protocol::network::{NetworkError, UnisonServer, UnisonServerExt};
-use unison_protocol::{ProtocolServer, UnisonProtocol};
+use unison::network::{NetworkError, UnisonServer, UnisonServerExt};
+use unison::{ProtocolServer, UnisonProtocol};
 
 #[tokio::main]
 async fn main() -> Result<()> {

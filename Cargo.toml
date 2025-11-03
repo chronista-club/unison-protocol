@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "crates/unison-protocol",
+    "crates/unison",
 ]
 resolver = "2"
 
@@ -9,8 +9,8 @@ version = "0.1.0-alpha3"
 edition = "2024"
 authors = ["Mako<mito@chronista.club>"]
 license = "MIT"
-homepage = "https://github.com/chronista-club/unison-protocol"
-repository = "https://github.com/chronista-club/unison-protocol"
+homepage = "https://github.com/chronista-club/unison"
+repository = "https://github.com/chronista-club/unison"
 rust-version = "1.85"
 
 [workspace.dependencies]

@@ -12,7 +12,7 @@
 //! ## 使用例
 //!
 //! ```ignore
-//! use unison_protocol::packet::{UnisonFrame, StringPayload};
+//! use unison::packet::{UnisonFrame, StringPayload};
 //!
 //! // フレーム作成
 //! let payload = StringPayload::from_string("Hello, World!");

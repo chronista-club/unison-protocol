@@ -5,10 +5,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::Barrier;
 use tracing::{Level, info};
-use unison_protocol::network::{
+use unison::network::{
     NetworkError, UnisonClient, UnisonServer, UnisonServerExt, quic::QuicClient,
 };
-use unison_protocol::{ProtocolClient, ProtocolServer};
+use unison::{ProtocolClient, ProtocolServer};
 
 /// ベンチマーク結果
 #[derive(Debug, Clone)]
