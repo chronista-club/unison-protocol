@@ -15,7 +15,7 @@ unison--{purpose}
 - `unison--feature` - 機能開発全般
 - `unison--network-layer` - ネットワーク層の実装
 - `unison--cli-commands` - CLIコマンドの実装
-- `unison-planning` - プランニング・仕様管理（既存）
+- `unison--planning` - プランニング・仕様管理（既存）
 
 ## 現在のワークツリー
 

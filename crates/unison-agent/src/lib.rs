@@ -25,6 +25,8 @@
 pub mod agent;
 pub mod client;
 pub mod error;
+pub mod tools;
 
 pub use agent::AgentClient;
 pub use error::{AgentError, Result};
+pub use tools::UnisonTools;
