@@ -315,10 +315,15 @@ println!("アクティブストリーム: {}", stats.active_streams);
 ## 📚 ドキュメント
 
 - [APIリファレンス](https://docs.rs/unison)
-- [プロトコル仕様](PROTOCOL_SPEC.md)
-- [アーキテクチャガイド](docs/ja/architecture.md)
-- [パケットモジュール仕様](docs/ja/packet.md)
-- [コントリビューションガイド](CONTRIBUTING.ja.md)
+- [仕様書](spec/) - プロジェクトの正式な要求仕様
+  - [コアネットワーク](spec/01-core-concept/SPEC.md)
+  - [RPCプロトコル](spec/02-protocol-rpc/SPEC.md)
+- [設計ドキュメント](design/) - 実装方法の詳細
+  - [アーキテクチャ設計](design/architecture.md)
+  - [パケット実装仕様](design/packet.md)
+- [実装ガイド](guides/) - 実装時の参考資料
+  - [Quinn APIガイド](guides/quinn-stream-api.md)
+- [コントリビューションガイド](CONTRIBUTING.md)
 
 ## 🛠️ 開発
 

@@ -13,8 +13,8 @@
   - `RkyvPayload`によるゼロコピーシリアライゼーション
   - Zstd圧縮とCRC32チェックサム機能
   - フレームベースの通信プロトコル
-- `AI_CONTEXT.md`を追加してプロジェクトコンテキストを整理
-- `docs/ja/packet.md`を追加してパケット仕様を文書化
+- `.claude/skills/developer.md`を追加して開発規約を整理
+- `design/packet.md`を追加してパケット仕様を文書化
 
 ### 変更
 - パーサーをknuffelに完全移行

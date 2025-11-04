@@ -54,7 +54,7 @@ pub mod parser;
 pub mod core;
 
 // フレーム層モジュール
-pub mod frame;
+pub mod packet;
 
 // CGPベースのコンテキストモジュール
 pub mod context;
