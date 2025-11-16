@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 use thiserror::Error;
 
-use crate::frame::{RkyvPayload, SerializationError, UnisonFrame};
+use crate::packet::{RkyvPayload, SerializationError, UnisonPacket};
 
 pub mod client;
 pub mod quic;
@@ -54,13 +54,13 @@ pub struct ProtocolMessage {
 }
 
 /// フレームでラップされたプロトコルメッセージの型エイリアス
-pub type ProtocolFrame = UnisonFrame<RkyvPayload<ProtocolMessage>>;
+pub type ProtocolFrame = UnisonPacket<RkyvPayload<ProtocolMessage>>;
 
 impl ProtocolMessage {
     /// ProtocolMessageをフレームに変換
     pub fn into_frame(self) -> Result<ProtocolFrame, SerializationError> {
         let payload = RkyvPayload::new(self);
-        UnisonFrame::new(payload)
+        UnisonPacket::new(payload)
     }
 
     /// フレームからProtocolMessageを復元

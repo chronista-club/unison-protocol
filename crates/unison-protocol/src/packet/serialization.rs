@@ -3,15 +3,14 @@
 //! UnisonPacketとBytesの相互変換、圧縮/解凍処理を実装します。
 
 use bytes::{BufMut, Bytes, BytesMut};
-use crc32fast::Hasher as Crc32Hasher;
 use rkyv::Deserialize;
 use thiserror::Error;
 use zstd::stream::{decode_all, encode_all};
 
 use super::{
-    config::FrameConfig,
-    flags::FrameFlags,
-    header::UnisonFrameHeader,
+    config::PacketConfig,
+    flags::PacketFlags,
+    header::UnisonPacketHeader,
     payload::{PayloadError, Payloadable},
 };
 
@@ -33,9 +32,6 @@ pub enum SerializationError {
     #[error("Invalid header")]
     InvalidHeader,
 
-    #[error("Checksum mismatch: expected {expected:#010x}, got {actual:#010x}")]
-    ChecksumMismatch { expected: u32, actual: u32 },
-
     #[error("Incompatible protocol version: {version}")]
     IncompatibleVersion { version: u8 },
 
@@ -50,22 +46,22 @@ pub enum SerializationError {
 }
 
 /// フレームのシリアライゼーション処理
-pub struct FrameSerializer;
+pub struct PacketSerializer;
 
-impl FrameSerializer {
+impl PacketSerializer {
     /// ヘッダーとペイロードをBytesに変換（デフォルト設定）
     pub fn serialize<T: Payloadable>(
-        header: &mut UnisonFrameHeader,
+        header: &mut UnisonPacketHeader,
         payload: &T,
     ) -> Result<Bytes, SerializationError> {
-        Self::serialize_with_config(header, payload, &FrameConfig::default())
+        Self::serialize_with_config(header, payload, &PacketConfig::default())
     }
 
     /// ヘッダーとペイロードをBytesに変換（カスタム設定）
     pub fn serialize_with_config<T: Payloadable>(
-        header: &mut UnisonFrameHeader,
+        header: &mut UnisonPacketHeader,
         payload: &T,
-        config: &FrameConfig,
+        config: &PacketConfig,
     ) -> Result<Bytes, SerializationError> {
         // ペイロードをシリアライズ
         let payload_bytes = payload.to_bytes()?;
@@ -95,19 +91,9 @@ impl FrameSerializer {
         // フラグを更新
         let mut flags = header.flags();
         if is_compressed {
-            flags.set(FrameFlags::COMPRESSED);
+            flags.set(PacketFlags::COMPRESSED);
         } else {
-            flags.unset(FrameFlags::COMPRESSED);
-        }
-        header.set_flags(flags);
-
-        // チェックサム計算（設定で有効な場合）
-        if config.checksum.enabled {
-            header.checksum = Self::calculate_checksum(&final_payload);
-            flags.set(FrameFlags::CHECKSUM);
-        } else {
-            header.checksum = 0;
-            flags.unset(FrameFlags::CHECKSUM);
+            flags.unset(PacketFlags::COMPRESSED);
         }
         header.set_flags(flags);
 
@@ -131,7 +117,7 @@ impl FrameSerializer {
     }
 
     /// ヘッダーをシリアライズ
-    fn serialize_header(header: &UnisonFrameHeader) -> Result<Bytes, SerializationError> {
+    fn serialize_header(header: &UnisonPacketHeader) -> Result<Bytes, SerializationError> {
         let bytes = rkyv::to_bytes::<_, 256>(header)
             .map_err(|e| SerializationError::SerializationFailed(e.to_string()))?;
         Ok(Bytes::from(bytes.to_vec()))
@@ -143,23 +129,16 @@ impl FrameSerializer {
             .map(Bytes::from)
             .map_err(|e| SerializationError::CompressionFailed(e.to_string()))
     }
-
-    /// CRC32チェックサムを計算
-    fn calculate_checksum(data: &[u8]) -> u32 {
-        let mut hasher = Crc32Hasher::new();
-        hasher.update(data);
-        hasher.finalize()
-    }
 }
 
 /// フレームのデシリアライゼーション処理
-pub struct FrameDeserializer;
+pub struct PacketDeserializer;
 
-impl FrameDeserializer {
+impl PacketDeserializer {
     /// Bytesからヘッダーとペイロードを分離
     pub fn deserialize_header(
         bytes: &Bytes,
-    ) -> Result<(UnisonFrameHeader, Bytes), SerializationError> {
+    ) -> Result<(UnisonPacketHeader, Bytes), SerializationError> {
         if bytes.len() < 48 {
             return Err(SerializationError::InvalidHeader);
         }
@@ -183,21 +162,21 @@ impl FrameDeserializer {
 
     /// ペイロードをデシリアライズ（デフォルト設定）
     pub fn deserialize_payload<T: Payloadable>(
-        header: &UnisonFrameHeader,
+        header: &UnisonPacketHeader,
         payload_bytes: &Bytes,
     ) -> Result<T, SerializationError>
     where
         T::Archived: Deserialize<T, rkyv::Infallible>,
         for<'a> T::Archived: rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'a>>,
     {
-        Self::deserialize_payload_with_config(header, payload_bytes, &FrameConfig::default())
+        Self::deserialize_payload_with_config(header, payload_bytes, &PacketConfig::default())
     }
 
     /// ペイロードをデシリアライズ（カスタム設定）
     pub fn deserialize_payload_with_config<T: Payloadable>(
-        header: &UnisonFrameHeader,
+        header: &UnisonPacketHeader,
         payload_bytes: &Bytes,
-        config: &FrameConfig,
+        _config: &PacketConfig,
     ) -> Result<T, SerializationError>
     where
         T::Archived: Deserialize<T, rkyv::Infallible>,
@@ -207,25 +186,6 @@ impl FrameDeserializer {
         let expected_size = header.actual_payload_size() as usize;
         if payload_bytes.len() != expected_size {
             return Err(SerializationError::InvalidHeader);
-        }
-
-        // チェックサム検証（設定で有効な場合）
-        if header.has_checksum() {
-            if config.checksum.required || config.checksum.enabled {
-                let calculated = FrameSerializer::calculate_checksum(payload_bytes);
-                if calculated != header.checksum {
-                    return Err(SerializationError::ChecksumMismatch {
-                        expected: header.checksum,
-                        actual: calculated,
-                    });
-                }
-            }
-        } else if config.checksum.required {
-            // チェックサムが必須なのに含まれていない
-            return Err(SerializationError::ChecksumMismatch {
-                expected: 0,
-                actual: 0,
-            });
         }
 
         // 解凍（必要な場合）
@@ -241,24 +201,13 @@ impl FrameDeserializer {
 
     /// ゼロコピーでペイロードの参照を取得
     pub fn deserialize_payload_zero_copy<'a, T: Payloadable>(
-        header: &UnisonFrameHeader,
+        header: &UnisonPacketHeader,
         payload_bytes: &'a [u8],
         buffer: &'a mut Vec<u8>,
     ) -> Result<&'a T::Archived, SerializationError>
     where
         for<'b> T::Archived: rkyv::CheckBytes<rkyv::validation::validators::DefaultValidator<'b>>,
     {
-        // チェックサム検証（必要な場合）
-        if header.has_checksum() {
-            let calculated = FrameSerializer::calculate_checksum(payload_bytes);
-            if calculated != header.checksum {
-                return Err(SerializationError::ChecksumMismatch {
-                    expected: header.checksum,
-                    actual: calculated,
-                });
-            }
-        }
-
         // 解凍が必要な場合はバッファを使用
         if header.is_compressed() {
             *buffer = Self::decompress_to_vec(payload_bytes)?;
@@ -270,8 +219,8 @@ impl FrameDeserializer {
     }
 
     /// ヘッダーをパース
-    fn parse_header(bytes: &[u8]) -> Result<UnisonFrameHeader, SerializationError> {
-        let archived = rkyv::check_archived_root::<UnisonFrameHeader>(bytes)
+    fn parse_header(bytes: &[u8]) -> Result<UnisonPacketHeader, SerializationError> {
+        let archived = rkyv::check_archived_root::<UnisonPacketHeader>(bytes)
             .map_err(|e| SerializationError::DeserializationFailed(e.to_string()))?;
 
         archived
@@ -295,30 +244,30 @@ impl FrameDeserializer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::frame::payload::{BytesPayload, StringPayload};
-    use crate::frame::{ChecksumConfig, FrameType};
+    use crate::packet::PacketType;
+    use crate::packet::payload::{BytesPayload, StringPayload};
 
     #[test]
     fn test_serialize_small_packet() {
         // 圧縮閾値未満のフレーム
-        let mut header = UnisonFrameHeader::new(FrameType::Data);
+        let mut header = UnisonPacketHeader::new(PacketType::Data);
         let payload = StringPayload::from_string("Hello, World!");
 
-        let packet = FrameSerializer::serialize(&mut header, &payload).unwrap();
+        let packet = PacketSerializer::serialize(&mut header, &payload).unwrap();
 
         assert!(!header.is_compressed());
         assert_eq!(header.compressed_length, 0);
-        assert!(packet.len() > 48); // ヘッダー + ペイロード
+        assert!(packet.len() > 64); // ヘッダー + ペイロード
     }
 
     #[test]
     fn test_serialize_large_packet() {
         // 圧縮閾値以上のフレーム
-        let mut header = UnisonFrameHeader::new(FrameType::Data);
+        let mut header = UnisonPacketHeader::new(PacketType::Data);
         let large_text = "x".repeat(3000);
         let payload = StringPayload::new(large_text);
 
-        let packet = FrameSerializer::serialize(&mut header, &payload).unwrap();
+        let packet = PacketSerializer::serialize(&mut header, &payload).unwrap();
 
         assert!(header.is_compressed());
         assert!(header.compressed_length > 0);
@@ -327,21 +276,20 @@ mod tests {
 
     #[test]
     fn test_round_trip() {
-        let mut header = UnisonFrameHeader::new(FrameType::Data)
+        let mut header = UnisonPacketHeader::new(PacketType::Data)
             .with_sequence(42)
             .with_stream_id(1337);
-        header.checksum = 1; // チェックサムを有効化
 
         let payload = StringPayload::from_string("Test payload data");
 
         // シリアライズ
-        let packet = FrameSerializer::serialize(&mut header, &payload).unwrap();
+        let packet = PacketSerializer::serialize(&mut header, &payload).unwrap();
 
         // デシリアライズ
         let (restored_header, payload_bytes) =
-            FrameDeserializer::deserialize_header(&packet).unwrap();
+            PacketDeserializer::deserialize_header(&packet).unwrap();
         let restored_payload: StringPayload =
-            FrameDeserializer::deserialize_payload(&restored_header, &payload_bytes).unwrap();
+            PacketDeserializer::deserialize_payload(&restored_header, &payload_bytes).unwrap();
 
         assert_eq!(restored_header.sequence_number, 42);
         assert_eq!(restored_header.stream_id, 1337);
@@ -350,15 +298,15 @@ mod tests {
 
     #[test]
     fn test_zero_copy_deserialization() {
-        let mut header = UnisonFrameHeader::new(FrameType::Data);
+        let mut header = UnisonPacketHeader::new(PacketType::Data);
         let payload = BytesPayload::new(vec![1, 2, 3, 4, 5]);
 
-        let packet = FrameSerializer::serialize(&mut header, &payload).unwrap();
+        let packet = PacketSerializer::serialize(&mut header, &payload).unwrap();
         let (restored_header, payload_bytes) =
-            FrameDeserializer::deserialize_header(&packet).unwrap();
+            PacketDeserializer::deserialize_header(&packet).unwrap();
 
         let mut buffer = Vec::new();
-        let archived = FrameDeserializer::deserialize_payload_zero_copy::<BytesPayload>(
+        let archived = PacketDeserializer::deserialize_payload_zero_copy::<BytesPayload>(
             &restored_header,
             &payload_bytes,
             &mut buffer,
@@ -369,40 +317,13 @@ mod tests {
     }
 
     #[test]
-    fn test_checksum_validation() {
-        let mut header = UnisonFrameHeader::new(FrameType::Data);
-        let payload = StringPayload::from_string("Test");
-
-        // チェックサムを有効にした設定でシリアライズ
-        let config = FrameConfig::default().with_checksum(ChecksumConfig::enabled());
-        let mut packet =
-            FrameSerializer::serialize_with_config(&mut header, &payload, &config).unwrap();
-
-        // フレームを改ざん
-        let last_idx = packet.len() - 1;
-        let mut modified = packet.to_vec();
-        modified[last_idx] ^= 0xFF;
-        let corrupted = Bytes::from(modified);
-
-        // デシリアライズ時にチェックサムエラーになるはず
-        let (header, payload_bytes) = FrameDeserializer::deserialize_header(&corrupted).unwrap();
-        let result: Result<StringPayload, _> =
-            FrameDeserializer::deserialize_payload_with_config(&header, &payload_bytes, &config);
-
-        assert!(matches!(
-            result,
-            Err(SerializationError::ChecksumMismatch { .. })
-        ));
-    }
-
-    #[test]
     fn test_compression_effectiveness() {
         // 圧縮が効果的なデータ
-        let mut header = UnisonFrameHeader::new(FrameType::Data);
+        let mut header = UnisonPacketHeader::new(PacketType::Data);
         let repetitive_data = "a".repeat(3000);
         let payload = StringPayload::new(repetitive_data);
 
-        let packet = FrameSerializer::serialize(&mut header, &payload).unwrap();
+        let _packet = PacketSerializer::serialize(&mut header, &payload).unwrap();
 
         assert!(header.is_compressed());
         assert!(header.compressed_length < header.payload_length / 2);

@@ -1,16 +1,16 @@
 //! フレームヘッダーの定義
 //!
-//! UnisonFrameのヘッダー構造を定義します。
+//! UnisonPacketのヘッダー構造を定義します。
 //! rkyvによるゼロコピーシリアライゼーションをサポートします。
 
-use super::flags::FrameFlags;
+use super::flags::PacketFlags;
 use rkyv::{Archive, Deserialize, Serialize};
 
 /// フレームタイプを定義する列挙型
 #[derive(Archive, Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[archive(check_bytes)]
 #[repr(u8)]
-pub enum FrameType {
+pub enum PacketType {
     /// 通常のデータフレーム
     Data = 0x00,
     /// 制御メッセージ
@@ -23,7 +23,7 @@ pub enum FrameType {
     Custom(u8),
 }
 
-impl From<u8> for FrameType {
+impl From<u8> for PacketType {
     fn from(value: u8) -> Self {
         match value {
             0x00 => Self::Data,
@@ -35,31 +35,31 @@ impl From<u8> for FrameType {
     }
 }
 
-impl From<FrameType> for u8 {
-    fn from(pt: FrameType) -> Self {
+impl From<PacketType> for u8 {
+    fn from(pt: PacketType) -> Self {
         match pt {
-            FrameType::Data => 0x00,
-            FrameType::Control => 0x01,
-            FrameType::Heartbeat => 0x02,
-            FrameType::Handshake => 0x03,
-            FrameType::Custom(v) => v,
+            PacketType::Data => 0x00,
+            PacketType::Control => 0x01,
+            PacketType::Heartbeat => 0x02,
+            PacketType::Handshake => 0x03,
+            PacketType::Custom(v) => v,
         }
     }
 }
 
-/// UnisonFrameのヘッダー構造
+/// UnisonPacketのヘッダー構造
 ///
 /// 固定長48バイトのヘッダーで、パケットのメタデータを格納します。
 #[derive(Archive, Deserialize, Serialize, Debug, Clone)]
 #[archive(check_bytes)]
-pub struct UnisonFrameHeader {
+pub struct UnisonPacketHeader {
     /// プロトコルバージョン（現在: 0x01）
     pub version: u8,
 
     /// フレームタイプ
     pub packet_type: u8,
 
-    /// ビットフラグ（FrameFlags）
+    /// ビットフラグ（PacketFlags）
     pub flags: u16,
 
     /// 圧縮前のペイロード長（バイト）
@@ -67,9 +67,6 @@ pub struct UnisonFrameHeader {
 
     /// 圧縮後のペイロード長（0=非圧縮）
     pub compressed_length: u32,
-
-    /// CRC32チェックサム（0=チェックサムなし）
-    pub checksum: u32,
 
     /// シーケンス番号
     pub sequence_number: u64,
@@ -80,62 +77,59 @@ pub struct UnisonFrameHeader {
     /// ストリーム識別子
     pub stream_id: u64,
 
-    /// アライメント用パディング
-    #[doc(hidden)]
-    pub _padding: [u8; 8],
+    /// メッセージID（このメッセージの一意な識別子）
+    pub message_id: u64,
+
+    /// 応答先メッセージID（0=Request/Oneway, >0=Response）
+    pub response_to: u64,
 }
 
-impl UnisonFrameHeader {
+impl UnisonPacketHeader {
     /// 現在のプロトコルバージョン
     pub const CURRENT_VERSION: u8 = 0x01;
 
     /// 新しいヘッダーを作成
-    pub fn new(packet_type: FrameType) -> Self {
+    pub fn new(packet_type: PacketType) -> Self {
         Self {
             version: Self::CURRENT_VERSION,
             packet_type: packet_type.into(),
             flags: 0,
             payload_length: 0,
             compressed_length: 0,
-            checksum: 0,
             sequence_number: 0,
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_nanos() as u64,
             stream_id: 0,
-            _padding: [0; 8],
+            message_id: 0,
+            response_to: 0,
         }
     }
 
     /// フレームタイプを取得
-    pub fn packet_type(&self) -> FrameType {
-        FrameType::from(self.packet_type)
+    pub fn packet_type(&self) -> PacketType {
+        PacketType::from(self.packet_type)
     }
 
     /// フレームタイプを設定
-    pub fn set_packet_type(&mut self, packet_type: FrameType) {
+    pub fn set_packet_type(&mut self, packet_type: PacketType) {
         self.packet_type = packet_type.into();
     }
 
     /// フラグを取得
-    pub fn flags(&self) -> FrameFlags {
-        FrameFlags::from(self.flags)
+    pub fn flags(&self) -> PacketFlags {
+        PacketFlags::from(self.flags)
     }
 
     /// フラグを設定
-    pub fn set_flags(&mut self, flags: FrameFlags) {
+    pub fn set_flags(&mut self, flags: PacketFlags) {
         self.flags = flags.into();
     }
 
     /// 圧縮されているかチェック
     pub fn is_compressed(&self) -> bool {
         self.compressed_length > 0 && self.flags().is_compressed()
-    }
-
-    /// チェックサムが有効かチェック
-    pub fn has_checksum(&self) -> bool {
-        self.checksum != 0
     }
 
     /// バージョンの互換性をチェック
@@ -164,10 +158,31 @@ impl UnisonFrameHeader {
         self
     }
 
-    /// チェックサムを設定
-    pub fn with_checksum(mut self, checksum: u32) -> Self {
-        self.checksum = checksum;
+    /// メッセージIDを設定
+    pub fn with_message_id(mut self, id: u64) -> Self {
+        self.message_id = id;
         self
+    }
+
+    /// 応答先メッセージIDを設定
+    pub fn with_response_to(mut self, id: u64) -> Self {
+        self.response_to = id;
+        self
+    }
+
+    /// このメッセージがRequestかチェック
+    pub fn is_request(&self) -> bool {
+        self.response_to == 0 && self.message_id != 0
+    }
+
+    /// このメッセージがResponseかチェック
+    pub fn is_response(&self) -> bool {
+        self.response_to != 0
+    }
+
+    /// このメッセージがOnewayかチェック
+    pub fn is_oneway(&self) -> bool {
+        self.response_to == 0 && self.message_id == 0
     }
 
     /// 現在のタイムスタンプを更新
@@ -179,9 +194,9 @@ impl UnisonFrameHeader {
     }
 }
 
-impl Default for UnisonFrameHeader {
+impl Default for UnisonPacketHeader {
     fn default() -> Self {
-        Self::new(FrameType::Data)
+        Self::new(PacketType::Data)
     }
 }
 
@@ -191,35 +206,34 @@ mod tests {
 
     #[test]
     fn test_header_creation() {
-        let header = UnisonFrameHeader::new(FrameType::Data);
-        assert_eq!(header.version, UnisonFrameHeader::CURRENT_VERSION);
-        assert_eq!(header.packet_type(), FrameType::Data);
+        let header = UnisonPacketHeader::new(PacketType::Data);
+        assert_eq!(header.version, UnisonPacketHeader::CURRENT_VERSION);
+        assert_eq!(header.packet_type(), PacketType::Data);
         assert_eq!(header.payload_length, 0);
         assert_eq!(header.compressed_length, 0);
         assert!(!header.is_compressed());
-        assert!(!header.has_checksum());
     }
 
     #[test]
     fn test_packet_type_conversion() {
-        assert_eq!(u8::from(FrameType::Data), 0x00);
-        assert_eq!(u8::from(FrameType::Control), 0x01);
-        assert_eq!(u8::from(FrameType::Heartbeat), 0x02);
-        assert_eq!(u8::from(FrameType::Handshake), 0x03);
-        assert_eq!(u8::from(FrameType::Custom(0xFF)), 0xFF);
+        assert_eq!(u8::from(PacketType::Data), 0x00);
+        assert_eq!(u8::from(PacketType::Control), 0x01);
+        assert_eq!(u8::from(PacketType::Heartbeat), 0x02);
+        assert_eq!(u8::from(PacketType::Handshake), 0x03);
+        assert_eq!(u8::from(PacketType::Custom(0xFF)), 0xFF);
 
-        assert_eq!(FrameType::from(0x00), FrameType::Data);
-        assert_eq!(FrameType::from(0x01), FrameType::Control);
-        assert_eq!(FrameType::from(0x02), FrameType::Heartbeat);
-        assert_eq!(FrameType::from(0x03), FrameType::Handshake);
-        assert_eq!(FrameType::from(0xFF), FrameType::Custom(0xFF));
+        assert_eq!(PacketType::from(0x00), PacketType::Data);
+        assert_eq!(PacketType::from(0x01), PacketType::Control);
+        assert_eq!(PacketType::from(0x02), PacketType::Heartbeat);
+        assert_eq!(PacketType::from(0x03), PacketType::Handshake);
+        assert_eq!(PacketType::from(0xFF), PacketType::Custom(0xFF));
     }
 
     #[test]
     fn test_flags_integration() {
-        let mut header = UnisonFrameHeader::new(FrameType::Data);
-        let mut flags = FrameFlags::new();
-        flags.set(FrameFlags::COMPRESSED | FrameFlags::PRIORITY_HIGH);
+        let mut header = UnisonPacketHeader::new(PacketType::Data);
+        let mut flags = PacketFlags::new();
+        flags.set(PacketFlags::COMPRESSED | PacketFlags::PRIORITY_HIGH);
 
         header.set_flags(flags);
         assert_eq!(header.flags().bits(), flags.bits());
@@ -229,26 +243,23 @@ mod tests {
 
     #[test]
     fn test_builder_pattern() {
-        let header = UnisonFrameHeader::new(FrameType::Control)
+        let header = UnisonPacketHeader::new(PacketType::Control)
             .with_sequence(42)
-            .with_stream_id(1337)
-            .with_checksum(0xDEADBEEF);
+            .with_stream_id(1337);
 
         assert_eq!(header.sequence_number, 42);
         assert_eq!(header.stream_id, 1337);
-        assert_eq!(header.checksum, 0xDEADBEEF);
-        assert!(header.has_checksum());
     }
 
     #[test]
     fn test_actual_payload_size() {
-        let mut header = UnisonFrameHeader::new(FrameType::Data);
+        let mut header = UnisonPacketHeader::new(PacketType::Data);
         header.payload_length = 1000;
         assert_eq!(header.actual_payload_size(), 1000);
 
         header.compressed_length = 500;
-        let mut flags = FrameFlags::new();
-        flags.set(FrameFlags::COMPRESSED);
+        let mut flags = PacketFlags::new();
+        flags.set(PacketFlags::COMPRESSED);
         header.set_flags(flags);
         assert_eq!(header.actual_payload_size(), 500);
     }
@@ -257,7 +268,41 @@ mod tests {
     fn test_header_size() {
         // ヘッダーサイズが48バイトであることを確認
         use std::mem::size_of;
-        let header_size = size_of::<UnisonFrameHeader>();
-        assert_eq!(header_size, 48, "Header size should be exactly 48 bytes");
+        let header_size = size_of::<UnisonPacketHeader>();
+        assert_eq!(header_size, 64, "Header size should be exactly 64 bytes");
+    }
+
+    #[test]
+    fn test_message_type_request() {
+        let header = UnisonPacketHeader::new(PacketType::Data)
+            .with_message_id(123)
+            .with_response_to(0);
+
+        assert!(header.is_request());
+        assert!(!header.is_response());
+        assert!(!header.is_oneway());
+    }
+
+    #[test]
+    fn test_message_type_response() {
+        let header = UnisonPacketHeader::new(PacketType::Data)
+            .with_message_id(456)
+            .with_response_to(123);
+
+        assert!(!header.is_request());
+        assert!(header.is_response());
+        assert!(!header.is_oneway());
+        assert_eq!(header.response_to, 123);
+    }
+
+    #[test]
+    fn test_message_type_oneway() {
+        let header = UnisonPacketHeader::new(PacketType::Data)
+            .with_message_id(0)
+            .with_response_to(0);
+
+        assert!(!header.is_request());
+        assert!(!header.is_response());
+        assert!(header.is_oneway());
     }
 }

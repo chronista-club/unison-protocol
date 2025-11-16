@@ -1,6 +1,6 @@
 //! ペイロード用のトレイトと基本実装
 //!
-//! UnisonFrameのペイロードとして使用できる型のトレイトを定義します。
+//! UnisonPacketのペイロードとして使用できる型のトレイトを定義します。
 
 use bytes::Bytes;
 use rkyv::{
@@ -25,7 +25,7 @@ pub enum PayloadError {
     TooLarge { size: usize, max_size: usize },
 }
 
-/// ペイロードとしてUnisonFrameで使用できる型のトレイト
+/// ペイロードとしてUnisonPacketで使用できる型のトレイト
 ///
 /// このトレイトを実装する型は、rkyvによるゼロコピーシリアライゼーションと
 /// bytesクレートとの相互変換をサポートする必要があります。
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_string_payload() {
-        let text = "Hello, UnisonFrame!";
+        let text = "Hello, UnisonPacket!";
         let payload = StringPayload::from_string(text);
 
         let bytes = payload.to_bytes().unwrap();

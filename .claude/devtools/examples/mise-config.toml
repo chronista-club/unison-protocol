@@ -1,0 +1,165 @@
+# mise設定ファイルの例
+# このファイルはプロジェクトルートに `mise.toml` として配置します
+
+# ===== ツールバージョン管理 =====
+[tools]
+# Rust - プロジェクトで使用するRustバージョン
+rust = "1.90"
+# または、チャンネル指定も可能
+# rust = "stable"
+# rust = "nightly"
+# rust = "beta"
+
+# Node.js - フロントエンド開発用
+node = "20.11"
+
+# Python - スクリプトやツール用
+python = "3.12"
+
+# Go - 追加ツール用
+go = "1.22"
+
+# その他のツール例
+# java = "openjdk-21"
+# ruby = "3.3"
+# terraform = "1.7"
+
+# ===== 環境変数 =====
+[env]
+# Rust関連
+RUST_LOG = "info"
+RUST_BACKTRACE = "1"
+CARGO_NET_RETRY = "10"
+
+# データベース
+DATABASE_URL = "sqlite:./dev.db"
+# DATABASE_URL = "postgresql://localhost/vantage_dev"
+
+# API設定
+API_PORT = "8080"
+WEB_PORT = "3000"
+
+# 開発環境フラグ
+DEVELOPMENT = "true"
+
+# ===== タスク定義 =====
+[tasks.dev]
+description = "開発サーバーを起動"
+run = "cargo watch -x 'run --bin vantage-hub-demo -- --web'"
+
+[tasks.test]
+description = "全てのテストを実行"
+run = "cargo test --all-features"
+
+[tasks.test-unit]
+description = "ユニットテストのみ実行"
+run = "cargo test --lib"
+
+[tasks.test-integration]
+description = "統合テストのみ実行"
+run = "cargo test --test '*'"
+
+[tasks.lint]
+description = "コードの品質チェック"
+run = [
+  "cargo clippy -- -D warnings",
+  "cargo fmt -- --check"
+]
+
+[tasks.fmt]
+description = "コードフォーマット"
+run = "cargo fmt"
+
+[tasks.build]
+description = "リリースビルド"
+run = "cargo build --release"
+
+[tasks.clean]
+description = "ビルド成果物をクリーン"
+run = "cargo clean"
+
+[tasks.doc]
+description = "ドキュメント生成"
+run = "cargo doc --no-deps --open"
+
+[tasks.check]
+description = "型チェックと依存関係の確認"
+run = [
+  "cargo check --all-features",
+  "cargo outdated"
+]
+
+[tasks.setup]
+description = "開発環境の初期セットアップ"
+run = [
+  "mise install",
+  "cargo build",
+  "cd ui && npm install"
+]
+
+[tasks.update-deps]
+description = "依存関係の更新"
+run = [
+  "cargo update",
+  "cd ui && npm update"
+]
+
+# 複合タスク例
+[tasks.ci]
+description = "CI環境で実行するタスク"
+run = [
+  "mise run lint",
+  "mise run test",
+  "mise run build"
+]
+
+# ===== エイリアス =====
+# 複数バージョンを使い分ける場合
+[alias.rust]
+latest = "1.90"
+stable = "1.90"
+testing = "nightly-2024-03-01"
+
+# ===== プラグイン（追加ツール） =====
+# カスタムツールやプラグインを追加可能
+# [plugins]
+# custom-tool = "https://github.com/example/mise-plugin-custom"
+
+# ===== プロジェクト固有の設定 =====
+[settings]
+# 自動インストールを有効化
+experimental = true
+# ツールの自動アクティベート
+legacy_version_file = true
+
+# ===== 使用例 =====
+#
+# 1. プロジェクトセットアップ
+#    $ mise install
+#    $ mise run setup
+#
+# 2. 開発サーバー起動
+#    $ mise run dev
+#
+# 3. テスト実行
+#    $ mise run test
+#
+# 4. コード品質チェック
+#    $ mise run lint
+#
+# 5. タスク一覧表示
+#    $ mise tasks
+#
+# 6. 環境変数確認
+#    $ mise env
+
+# ===== ローカル設定について =====
+#
+# 個人的な設定（APIキーなど）は mise.local.toml に記述します
+# mise.local.toml は .gitignore に追加してください
+#
+# mise.local.toml の例:
+# [env]
+# ANTHROPIC_API_KEY = "sk-ant-..."
+# OPENAI_API_KEY = "sk-..."
+# GITHUB_TOKEN = "ghp_..."

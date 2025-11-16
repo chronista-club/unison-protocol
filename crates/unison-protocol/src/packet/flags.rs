@@ -7,9 +7,9 @@ use std::fmt;
 
 /// フレームフラグを表すビットフィールド
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct FrameFlags(pub u16);
+pub struct PacketFlags(pub u16);
 
-impl FrameFlags {
+impl PacketFlags {
     /// ペイロードが圧縮されている
     pub const COMPRESSED: u16 = 0b0000_0000_0000_0001; // bit 0
 
@@ -40,10 +40,7 @@ impl FrameFlags {
     /// メタデータ付き
     pub const METADATA: u16 = 0b0000_0010_0000_0000; // bit 9
 
-    /// チェックサム付き
-    pub const CHECKSUM: u16 = 0b0000_0100_0000_0000; // bit 10
-
-    // bit 11-15: 将来の拡張用に予約
+    // bit 10-15: 将来の拡張用に予約
 
     /// 新しい空のフラグセットを作成
     pub fn new() -> Self {
@@ -144,14 +141,9 @@ impl FrameFlags {
     pub fn has_metadata(&self) -> bool {
         self.contains(Self::METADATA)
     }
-
-    /// チェックサム付きかチェック
-    pub fn has_checksum(&self) -> bool {
-        self.contains(Self::CHECKSUM)
-    }
 }
 
-impl fmt::Display for FrameFlags {
+impl fmt::Display for PacketFlags {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut flags = Vec::new();
 
@@ -185,26 +177,23 @@ impl fmt::Display for FrameFlags {
         if self.has_metadata() {
             flags.push("METADATA");
         }
-        if self.has_checksum() {
-            flags.push("CHECKSUM");
-        }
 
         if flags.is_empty() {
-            write!(f, "FrameFlags(NONE)")
+            write!(f, "PacketFlags(NONE)")
         } else {
-            write!(f, "FrameFlags({})", flags.join(" | "))
+            write!(f, "PacketFlags({})", flags.join(" | "))
         }
     }
 }
 
-impl From<u16> for FrameFlags {
+impl From<u16> for PacketFlags {
     fn from(bits: u16) -> Self {
         Self(bits)
     }
 }
 
-impl From<FrameFlags> for u16 {
-    fn from(flags: FrameFlags) -> Self {
+impl From<PacketFlags> for u16 {
+    fn from(flags: PacketFlags) -> Self {
         flags.0
     }
 }
@@ -215,22 +204,22 @@ mod tests {
 
     #[test]
     fn test_flag_operations() {
-        let mut flags = FrameFlags::new();
+        let mut flags = PacketFlags::new();
         assert_eq!(flags.bits(), 0);
 
         // フラグを設定
-        flags.set(FrameFlags::COMPRESSED);
+        flags.set(PacketFlags::COMPRESSED);
         assert!(flags.is_compressed());
         assert!(!flags.is_encrypted());
 
         // 複数のフラグを設定
-        flags.set(FrameFlags::PRIORITY_HIGH | FrameFlags::REQUIRES_ACK);
+        flags.set(PacketFlags::PRIORITY_HIGH | PacketFlags::REQUIRES_ACK);
         assert!(flags.is_compressed());
         assert!(flags.is_high_priority());
         assert!(flags.requires_ack());
 
         // フラグをクリア
-        flags.unset(FrameFlags::COMPRESSED);
+        flags.unset(PacketFlags::COMPRESSED);
         assert!(!flags.is_compressed());
         assert!(flags.is_high_priority());
 
@@ -241,26 +230,26 @@ mod tests {
 
     #[test]
     fn test_contains_methods() {
-        let mut flags = FrameFlags::new();
-        flags.set(FrameFlags::COMPRESSED | FrameFlags::PRIORITY_HIGH);
+        let mut flags = PacketFlags::new();
+        flags.set(PacketFlags::COMPRESSED | PacketFlags::PRIORITY_HIGH);
 
         // 単一フラグチェック
-        assert!(flags.contains(FrameFlags::COMPRESSED));
-        assert!(!flags.contains(FrameFlags::ENCRYPTED));
+        assert!(flags.contains(PacketFlags::COMPRESSED));
+        assert!(!flags.contains(PacketFlags::ENCRYPTED));
 
         // 複数フラグチェック
-        assert!(flags.contains_all(FrameFlags::COMPRESSED | FrameFlags::PRIORITY_HIGH));
-        assert!(!flags.contains_all(FrameFlags::COMPRESSED | FrameFlags::ENCRYPTED));
-        assert!(flags.contains_any(FrameFlags::COMPRESSED | FrameFlags::ENCRYPTED));
-        assert!(!flags.contains_any(FrameFlags::ENCRYPTED | FrameFlags::FRAGMENTED));
+        assert!(flags.contains_all(PacketFlags::COMPRESSED | PacketFlags::PRIORITY_HIGH));
+        assert!(!flags.contains_all(PacketFlags::COMPRESSED | PacketFlags::ENCRYPTED));
+        assert!(flags.contains_any(PacketFlags::COMPRESSED | PacketFlags::ENCRYPTED));
+        assert!(!flags.contains_any(PacketFlags::ENCRYPTED | PacketFlags::FRAGMENTED));
     }
 
     #[test]
     fn test_display() {
-        let mut flags = FrameFlags::new();
-        assert_eq!(format!("{}", flags), "FrameFlags(NONE)");
+        let mut flags = PacketFlags::new();
+        assert_eq!(format!("{}", flags), "PacketFlags(NONE)");
 
-        flags.set(FrameFlags::COMPRESSED | FrameFlags::PRIORITY_HIGH);
+        flags.set(PacketFlags::COMPRESSED | PacketFlags::PRIORITY_HIGH);
         let display = format!("{}", flags);
         assert!(display.contains("COMPRESSED"));
         assert!(display.contains("PRIORITY_HIGH"));
