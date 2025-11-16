@@ -1,92 +1,359 @@
-# spec/01: Unison Protocol - Core Network Concept
+# spec/01: Unison Protocol - コアネットワーク仕様
 
-## 概要
+**バージョン**: 0.1.0-draft  
+**最終更新**: 2025-11-05  
+**ステータス**: Draft
 
-Unison Protocolは、スケーラブルで高性能な分散ネットワークを実現するため、3層アーキテクチャとQUICトランスポートを採用しています。本仕様書では、ネットワーク層のコアコンセプトと設計思想を定義します。
+---
 
-## 1. 設計思想
+## 目次
 
-### 1.1 目標
+1. [概要](#1-概要)
+2. [設計思想](#2-設計思想)
+3. [ネットワークアーキテクチャ](#3-ネットワークアーキテクチャ)
+4. [起動シーケンス](#4-起動シーケンス)
+5. [ディスカバリー機構](#5-ディスカバリー機構)
+6. [Network IDとアドレッシング](#6-network-idとアドレッシング)
+7. [QUIC通信](#7-quic通信)
+8. [パケットフォーマット](#8-パケットフォーマット)
+9. [障害時の動作](#9-障害時の動作)
+10. [セキュリティ](#10-セキュリティ)
+11. [今後の拡張](#11-今後の拡張)
+12. [関連ドキュメント](#12-関連ドキュメント)
 
-- **最高速レベルのネットワーク性能**: QUICの特性を最大限に活用
-- **スケーラビリティ**: 数千〜数万のノードをサポート
-- **柔軟性**: Hub無しでも動作可能な自律分散型
-- **プライベート性**: 独自のIPv6ユーザネットワーク構築
+---
 
-### 1.2 QUICの採用理由
+## 1. 概要
 
-QUICを採用した理由は、**単一のコネクションで複数の通信パターンを効率的に実現できる**ことにあります：
+Unisonプロトコルは、**スケーラブルで高性能な分散ネットワーク**を実現するため、3層アーキテクチャとQUICトランスポートを採用しています。
 
-- **双方向ストリーム**: 優先度付き制御メッセージ、RPC、リアルタイム通信
-- **データグラム**: 大量データ配信、メディアストリーミング、低レイテンシー通信
-- **マルチプレクシング**: Head-of-Line Blocking を回避した並行通信
-- **0-RTT接続**: 再接続時のレイテンシー削減
-- **組み込みTLS 1.3**: セキュアな通信がデフォルト
+### 1.1 主要な特徴
 
-この特性により、Unisonは**単一のQUICコネクション上で、多様な通信要求を最適に処理**できます。
+- **3層アーキテクチャ**: Agent/Hub/Root構造によるスケーラブルな設計
+- **QUICトランスポート**: 超低遅延・高スループットの通信
+- **自律分散**: Hub無しでも動作可能
+- **プライベートネットワーク**: 独自のIPv6アドレス空間
 
-## 2. ネットワークトポロジー
+### 1.2 システム全体像
 
-### 2.1 3層アーキテクチャ
-
+```mermaid
+graph TB
+    subgraph "Unison Network"
+        Root[Root Node<br/>ネットワーク管理]
+        
+        subgraph "Hub Layer"
+            Hub1[Hub 1]
+            Hub2[Hub 2]
+            Hub3[Hub 3]
+        end
+        
+        subgraph "Agent Layer"
+            A1[Agent 1]
+            A2[Agent 2]
+            A3[Agent 3]
+            A4[Agent 4]
+            A5[Agent 5]
+            A6[Agent 6]
+        end
+        
+        Root ---|QUIC| Hub1
+        Root ---|QUIC| Hub2
+        Root ---|QUIC| Hub3
+        
+        Hub1 -.メッシュ.-> Hub2
+        Hub2 -.メッシュ.-> Hub3
+        
+        Hub1 ---|QUIC| A1
+        Hub1 ---|QUIC| A2
+        Hub2 ---|QUIC| A3
+        Hub2 ---|QUIC| A4
+        Hub3 ---|QUIC| A5
+        Hub3 ---|QUIC| A6
+    end
+    
+    style Root fill:#ff6b6b
+    style Hub1 fill:#4ecdc4
+    style Hub2 fill:#4ecdc4
+    style Hub3 fill:#4ecdc4
+    style A1 fill:#95e1d3
+    style A2 fill:#95e1d3
+    style A3 fill:#95e1d3
+    style A4 fill:#95e1d3
+    style A5 fill:#95e1d3
+    style A6 fill:#95e1d3
 ```
-                    ┌──────────┐
-                    │   Root   │ ← ネットワーク全体の起点（単一）
-                    └──────────┘
-                    ↗    ↑    ↖
-                   /     |     \
-                  /      |      \
-            ┌─────┐  ┌─────┐  ┌─────┐
-            │ Hub │←→│ Hub │←→│ Hub │ ← 集約・中継ノード（相互接続）
-            └─────┘  └─────┘  └─────┘
-             ↗  ↑              ↗  ↑
-            /   |             /   |
-      ┌───┐ ┌───┐       ┌───┐ ┌───┐
-      │Agt│ │Agt│       │Agt│ │Agt│ ← 末端ノード（Hub無しでも動作可能）
-      └───┘ └───┘       └───┘ └───┘
+
+### 1.3 読者対象
+
+- Unisonプロトコルの実装者
+- ネットワークアーキテクチャを理解したい開発者
+- システム設計の意思決定者
+
+---
+
+## 2. 設計思想
+
+### 2.1 設計目標
+
+| 目標 | 説明 |
+|------|------|
+| **最高速ネットワーク** | QUICの特性を最大限に活用 |
+| **スケーラビリティ** | 数千〜数万のノードをサポート |
+| **柔軟性** | Hub無しでも動作可能な自律分散型 |
+| **プライバシー** | 独自のIPv6ユーザネットワーク |
+
+### 2.2 なぜQUICを採用したか
+
+QUICを採用した最大の理由は、**単一のコネクションで複数の通信パターンを効率的に実現できる**ことです。
+
+```mermaid
+graph LR
+    subgraph "単一QUICコネクション"
+        direction TB
+        
+        subgraph "双方向ストリーム"
+            S1[Stream 1: 接続制御<br/>優先度: 最高]
+            S2[Stream 2-99: システム<br/>優先度: 高]
+            S100[Stream 100+: ユーザ<br/>優先度: 中〜低]
+        end
+        
+        subgraph "データグラム"
+            D1[メディアストリーミング]
+            D2[ゲームデータ]
+            D3[センサーデータ]
+        end
+    end
+    
+    style S1 fill:#ff6b6b
+    style S2 fill:#ffa07a
+    style S100 fill:#98d8c8
+    style D1 fill:#c7ecee
+    style D2 fill:#c7ecee
+    style D3 fill:#c7ecee
 ```
 
-### 2.2 ノードの役割
+#### 従来技術との比較
 
-#### Agent (末端ノード)
-- **役割**: アプリケーションの実行環境
-- **特徴**:
-  - Hub無しでも動作可能（スタンドアロンモード）
-  - Hubを通じてネットワークに参加
-- **責務**:
-  - 起動時にHubを発見・接続
-  - Hubが見つからない場合、Hub serviceを起動
-  - アプリケーションロジックの実行
-  - ローカルリソースの管理
+```mermaid
+graph TB
+    subgraph "TCP + TLS"
+        T1[制御用接続]
+        T2[RPC用接続]
+        T3[ファイル転送用接続]
+        T4[別途UDPソケット<br/>メディア用]
+    end
+    
+    subgraph "QUIC"
+        Q[単一コネクション]
+        Q --> QS[複数ストリーム]
+        Q --> QD[データグラム]
+    end
+    
+    style T1 fill:#ffcccc
+    style T2 fill:#ffcccc
+    style T3 fill:#ffcccc
+    style T4 fill:#ffcccc
+    style Q fill:#ccffcc
+    style QS fill:#ccffcc
+    style QD fill:#ccffcc
+```
 
-#### Hub (集約・中継ノード)
-- **役割**: Agentの集約とメッセージルーティング
-- **特徴**:
-  - Hub同士で相互接続（メッシュトポロジー）
-  - Agentからの接続を受け入れ
-  - 独立したサービスプロセスとして動作
-- **責務**:
-  - 複数Agentからの接続を管理（推奨: 数十〜数百Agent/Hub）
-  - Rootへの接続を確立・維持
-  - Agent ⇔ Root間のメッセージルーティング
-  - Hub間のメッセージ転送
-  - 負荷分散とフェイルオーバー
+| 技術 | 接続数 | Head-of-Line Blocking | 0-RTT再接続 | 暗号化 |
+|------|--------|----------------------|------------|--------|
+| TCP + TLS | 複数必要 | あり | なし | 別途実装 |
+| WebRTC | 複雑 | 部分的 | なし | あり |
+| **QUIC** | **1つ** | **なし** | **あり** | **標準** |
 
-#### Root (ルートノード)
-- **役割**: ネットワーク全体の管理・調整
-- **特徴**:
-  - ネットワークごとに**常に1つ**のRoot
-  - 複数のHubから接続を受け入れ（推奨: 数十〜数百Hub/Root）
-- **責務**:
-  - Hubからの接続を管理
-  - グローバルな状態管理
-  - ノードディレクトリの管理
-  - network_idの発行と管理
-  - 認証・認可（オプション）
+---
 
-### 2.3 スケーラビリティ戦略
+## 3. ネットワークアーキテクチャ
 
-3層アーキテクチャにより、階層的なスケーリングを実現：
+### 3.1 3層構造の依存関係
+
+```mermaid
+graph TB
+    subgraph "Layer 3: Root"
+        Root[Root Node<br/>・network_id発行<br/>・グローバル管理]
+    end
+    
+    subgraph "Layer 2: Hub"
+        Hub1[Hub 1]
+        Hub2[Hub 2]
+        Hub3[Hub 3]
+    end
+    
+    subgraph "Layer 1: Agent"
+        A1[Agent 1<br/>アプリ実行]
+        A2[Agent 2<br/>アプリ実行]
+        A3[Agent 3<br/>アプリ実行]
+    end
+    
+    Root -->|network_id発行| Hub1
+    Root -->|network_id発行| Hub2
+    Root -->|network_id発行| Hub3
+    
+    Hub1 <-.Hub間通信.-> Hub2
+    Hub2 <-.Hub間通信.-> Hub3
+    
+    Hub1 -->|集約・ルーティング| A1
+    Hub2 -->|集約・ルーティング| A2
+    Hub3 -->|集約・ルーティング| A3
+    
+    A1 -.Hub未発見時.->|Hub起動| Hub1
+    
+    style Root fill:#ff6b6b
+    style Hub1 fill:#4ecdc4
+    style Hub2 fill:#4ecdc4
+    style Hub3 fill:#4ecdc4
+    style A1 fill:#95e1d3
+    style A2 fill:#95e1d3
+    style A3 fill:#95e1d3
+```
+
+### 3.2 各ノードの役割
+
+#### Agent（末端ノード）
+
+**役割**: アプリケーション実行環境
+
+```mermaid
+stateDiagram-v2
+    [*] --> Standalone: 起動
+    Standalone --> SearchingHub: Hubディスカバリー
+    SearchingHub --> ConnectedToHub: Hub発見
+    SearchingHub --> LaunchingHub: Hub未発見
+    LaunchingHub --> ConnectedToHub: Hub起動完了
+    ConnectedToHub --> [*]
+    
+    note right of Standalone
+        スタンドアロンモードで動作可能
+    end note
+    
+    note right of LaunchingHub
+        Hubサービスを起動
+    end note
+```
+
+**特徴**:
+- Hub無しでも動作可能（スタンドアロンモード）
+- 必要に応じてHubに接続
+
+**責務**:
+- 起動時にHubを発見・接続
+- Hubが見つからない場合、Hub serviceを起動
+- アプリケーションロジックの実行
+
+#### Hub（集約・中継ノード）
+
+**役割**: Agentの集約とルーティング
+
+```mermaid
+graph TB
+    Hub[Hub Node]
+    
+    subgraph "Hub機能"
+        AcceptAgent[Agent接続受付]
+        RouteMsg[メッセージルーティング]
+        ConnectRoot[Root接続管理]
+        MeshHub[Hub間通信]
+    end
+    
+    Hub --> AcceptAgent
+    Hub --> RouteMsg
+    Hub --> ConnectRoot
+    Hub --> MeshHub
+    
+    AcceptAgent -->|推奨| Agents[数十〜数百Agent]
+    ConnectRoot --> Root[Root Node]
+    MeshHub <--> OtherHubs[他のHub]
+    
+    style Hub fill:#4ecdc4
+    style Root fill:#ff6b6b
+```
+
+**特徴**:
+- Hub同士で相互接続（メッシュ）
+- 独立したサービスプロセス
+
+**責務**:
+- 複数Agentからの接続を管理（推奨: 数十〜数百Agent/Hub）
+- Rootへの接続を確立・維持
+- メッセージルーティング
+- 負荷分散とフェイルオーバー
+
+#### Root（ルートノード）
+
+**役割**: ネットワーク全体の管理・調整
+
+```mermaid
+graph TB
+    Root[Root Node<br/>ネットワークごとに1つ]
+    
+    subgraph "Root機能"
+        IssueID[network_id発行]
+        ManageHub[Hub接続管理]
+        GlobalState[グローバル状態管理]
+        Auth[認証・認可]
+    end
+    
+    Root --> IssueID
+    Root --> ManageHub
+    Root --> GlobalState
+    Root --> Auth
+    
+    ManageHub -->|推奨| Hubs[数十〜数百Hub]
+    IssueID --> Network[IPv6ネットワーク構築]
+    
+    style Root fill:#ff6b6b
+```
+
+**特徴**:
+- ネットワークごとに**常に1つ**
+- 複数のHubから接続を受け入れ（推奨: 数十〜数百Hub/Root）
+
+**責務**:
+- Hubからの接続を管理
+- グローバルな状態管理
+- network_idの発行と管理
+- 認証・認可（オプション）
+
+### 3.3 スケーラビリティ戦略
+
+```mermaid
+graph LR
+    Root[1 Root]
+    
+    subgraph "Hub Layer"
+        H1[Hub]
+        H2[Hub]
+        H3[...]
+        H100[Hub 100]
+    end
+    
+    subgraph "Agent Layer"
+        A1[100 Agents]
+        A2[100 Agents]
+        A3[...]
+        A100[100 Agents]
+    end
+    
+    Root --> H1
+    Root --> H2
+    Root --> H3
+    Root --> H100
+    
+    H1 --> A1
+    H2 --> A2
+    H3 --> A3
+    H100 --> A100
+    
+    style Root fill:#ff6b6b
+    style H1 fill:#4ecdc4
+    style H2 fill:#4ecdc4
+    style H100 fill:#4ecdc4
+```
+
+**階層的スケーリングの例**:
 
 ```
 1 Root = 100 Hubs (目安)
@@ -95,524 +362,852 @@ QUICを採用した理由は、**単一のコネクションで複数の通信�
 合計   = 10,000 Agents
 ```
 
-実際のスケールは、ネットワーク条件とハードウェアスペックに依存します。
+---
 
-## 3. 起動シーケンス
+## 4. 起動シーケンス
 
-### 3.1 Agentの起動フロー
+### 4.1 Agentの起動フロー
 
-```
-┌─────────────┐
-│ Agent起動   │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────┐
-│ Hubディスカバリー   │ ← mDNS → Bootstrap nodes
-└──────┬──────────────┘
-       │
-       ├─ Hub発見 ──────→ 接続
-       │
-       └─ Hub未発見 ───→ Hub service起動 ──→ 接続
-                                           │
-                                           └→ スタンドアロンモードで動作可能
-```
-
-**詳細**:
-1. Agent起動
-2. Hubディスカバリー実行（後述のディスカバリー機構）
-3. 分岐:
-   - **Hubが見つかる**: Hubへ接続し、ネットワークに参加
-   - **Hubが見つからない**:
-     - Hub serviceを独立プロセスとして起動
-     - 起動したHubに接続
-     - または、スタンドアロンモードで動作
-
-### 3.2 Hubの起動フロー
-
-```
-┌─────────────┐
-│ Hub起動     │
-└──────┬──────┘
-       │
-       ▼
-┌──────────────────────┐
-│ Agent接続待ち受け    │
-└──────┬───────────────┘
-       │
-       ▼
-┌──────────────────────┐
-│ Rootディスカバリー   │ ← バックグラウンド実行
-└──────┬───────────────┘
-       │
-       ├─ Root発見 ─────→ 接続 ──→ ネットワーク参加
-       │
-       └─ Root未発見 ───→ 孤立モードで動作
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant mDNS as mDNS
+    participant B as Bootstrap
+    participant H as Hub
+    participant HS as Hub Service
+    
+    A->>A: 起動
+    A->>mDNS: Hubディスカバリー
+    
+    alt Hub発見
+        mDNS-->>A: Hub情報
+        A->>H: 接続
+        H-->>A: 接続確立
+        A->>A: ネットワーク参加
+    else Hub未発見 (mDNS timeout)
+        mDNS-->>A: タイムアウト
+        A->>B: Bootstrap nodesに問い合わせ
+        
+        alt Bootstrap成功
+            B-->>A: Hub情報
+            A->>H: 接続
+        else Bootstrap失敗
+            B-->>A: Hub未発見
+            A->>HS: Hub service起動
+            HS-->>A: Hub起動完了
+            A->>HS: 接続
+            Note over A: スタンドアロンモードでも動作可
+        end
+    end
 ```
 
-**詳細**:
-1. Hub service起動
-2. Agentからの接続を待ち受け開始
-3. Rootディスカバリー実行（バックグラウンド）
-4. 分岐:
-   - **Rootが見つかる**: Rootに接続し、ネットワークに参加
-   - **Rootが見つからない**: 孤立モードで動作（後でRootが現れたら接続）
-5. 他のHubを発見した場合、Hub間接続を確立
+### 4.2 Hubの起動フロー
 
-### 3.3 Rootの起動フロー
-
+```mermaid
+sequenceDiagram
+    participant H as Hub
+    participant A as Agent
+    participant mDNS as mDNS
+    participant R as Root
+    
+    H->>H: 起動
+    H->>H: Agent接続待ち受け開始
+    
+    par Agent接続受付
+        A->>H: 接続要求
+        H-->>A: 接続確立
+    and Rootディスカバリー (バックグラウンド)
+        H->>mDNS: Root検索
+        
+        alt Root発見
+            mDNS-->>H: Root情報
+            H->>R: 接続要求
+            R-->>H: network_id発行
+            H->>H: ネットワーク参加
+        else Root未発見
+            mDNS-->>H: タイムアウト
+            H->>H: 孤立モードで動作
+            Note over H: 後でRootが現れたら接続
+        end
+    end
 ```
-┌─────────────┐
-│ Root起動    │
-└──────┬──────┘
-       │
-       ▼
-┌──────────────────────┐
-│ Hub接続待ち受け      │
-└──────┬───────────────┘
-       │
-       ▼
-┌──────────────────────┐
-│ network_id発行開始   │
-└──────────────────────┘
+
+### 4.3 Rootの起動フロー
+
+```mermaid
+stateDiagram-v2
+    [*] --> Starting: Root起動
+    Starting --> Listening: Hub接続待ち受け開始
+    Listening --> NetworkIDReady: network_id発行準備
+    NetworkIDReady --> DirectoryInit: ノードディレクトリ初期化
+    DirectoryInit --> Ready: 準備完了
+    Ready --> [*]
+    
+    note right of Ready
+        Hub接続を受け入れ可能
+        network_idを発行可能
+    end note
 ```
 
-**詳細**:
-1. Root起動
-2. Hubからの接続を待ち受け開始
-3. network_idの発行準備
-4. ノードディレクトリの初期化
+---
 
-## 4. ディスカバリー機構
+## 5. ディスカバリー機構
 
-### 4.1 Hub Discovery（Agentから実行）
+### 5.1 Hub Discovery（Agentから実行）
+
+```mermaid
+graph TD
+    A[Agent起動] --> mDNS[mDNS検索<br/>_unison-hub._udp.local]
+    
+    mDNS -->|3秒以内| HubFound[Hub発見]
+    mDNS -->|タイムアウト| Bootstrap[Bootstrap Nodes]
+    
+    HubFound --> Select{複数Hub?}
+    Select -->|はい| Closest[最も近いHubを選択<br/>レイテンシー基準]
+    Select -->|いいえ| Connect[Hub接続]
+    Closest --> Connect
+    
+    Bootstrap -->|成功| Connect
+    Bootstrap -->|失敗| Launch[Hub service起動]
+    Launch --> Connect
+    
+    Connect --> Join[ネットワーク参加]
+    
+    style A fill:#95e1d3
+    style HubFound fill:#4ecdc4
+    style Connect fill:#4ecdc4
+    style Join fill:#98d8c8
+```
 
 **優先順位**:
-1. **mDNS (ローカル優先)**:
-   - 同一ネットワーク内のHubを高速発見
-   - サービス名: `_unison-hub._udp.local`
-   - レイテンシー: < 100ms
 
-2. **Bootstrap Nodes (グローバル)**:
-   - 設定ファイルまたは環境変数で指定された既知のHub
-   - フォールバック用のグローバルHub
-   - レイテンシー: ネットワーク状況に依存
+| 順序 | 方式 | 対象 | レイテンシー |
+|-----|------|------|------------|
+| 1 | mDNS | ローカルネットワーク | < 100ms |
+| 2 | Bootstrap Nodes | グローバル | ネットワーク依存 |
 
-**動作**:
-- mDNSで3秒以内に応答がない場合、Bootstrap Nodesを試行
-- 複数のHubが見つかった場合、最も近い（レイテンシーが低い）Hubを選択
+### 5.2 Root Discovery（Hubから実行）
 
-### 4.2 Root Discovery（Hubから実行）
+```mermaid
+graph TD
+    H[Hub起動] --> Config{設定ファイル<br/>unison.toml}
+    
+    Config -->|あり| ConfigRoot[設定されたRoot]
+    Config -->|なし| DNS[DNS検索<br/>_unison-root._udp]
+    
+    DNS -->|成功| DNSRoot[DNS Root]
+    DNS -->|失敗| WellKnown[Well-known<br/>root.unison.network:8080]
+    
+    ConfigRoot --> TryConnect[接続試行]
+    DNSRoot --> TryConnect
+    WellKnown --> TryConnect
+    
+    TryConnect -->|成功| Connected[Root接続成功]
+    TryConnect -->|失敗| Retry[Exponential Backoff<br/>再試行]
+    
+    Retry --> TryConnect
+    
+    Connected --> GetNetID[network_id取得]
+    GetNetID --> Join[ネットワーク参加]
+    
+    style H fill:#4ecdc4
+    style Connected fill:#ff6b6b
+    style Join fill:#98d8c8
+```
 
-**方式**:
-1. **設定ファイル指定**:
-   - `unison.toml`または環境変数`UNISON_ROOT_ADDR`
-   - 明示的なRoot指定
+### 5.3 Hub-Hub Discovery
 
-2. **Well-known Endpoints**:
-   - デフォルトのRootエンドポイント
-   - 例: `root.unison.network:8080`
+```mermaid
+graph TB
+    Hub1[Hub起動]
+    
+    Hub1 --> Method1[方式1: Rootからの通知]
+    Hub1 --> Method2[方式2: mDNS]
+    Hub1 --> Method3[方式3: ゴシッププロトコル]
+    
+    Method1 --> Root[Root接続時に<br/>他のHubリスト取得]
+    Method2 --> Local[ローカルネットワーク<br/>他のHub発見]
+    Method3 --> Gossip[Hub間で相互に<br/>情報交換]
+    
+    Root --> TryDirect{直接接続可能?}
+    Local --> TryDirect
+    Gossip --> TryDirect
+    
+    TryDirect -->|はい| DirectConnect[直接Hub接続<br/>メッシュ形成]
+    TryDirect -->|いいえ<br/>NAT/FW| ViaRoot[Root経由<br/>ルーティング]
+    
+    style Hub1 fill:#4ecdc4
+    style DirectConnect fill:#98d8c8
+    style ViaRoot fill:#ffa07a
+```
 
-3. **DNS レコード**:
-   - `_unison-root._udp.<domain>`
+---
 
-**動作**:
-- 設定ファイル → DNS → Well-known の順で試行
-- Rootが見つからない場合、定期的に再試行（exponential backoff）
+## 6. Network IDとアドレッシング
 
-### 4.3 Hub-Hub Discovery
+### 6.1 Network IDの発行フロー
 
-**方式**:
-- Rootからの通知: Rootに接続した際に、他のHubのリストを取得
-- mDNS: ローカルネットワーク内の他のHubを発見
-- ゴシッププロトコル: Hub間で相互に情報を交換
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant H as Hub
+    participant R as Root
+    
+    A->>H: 接続
+    H->>R: 登録要求
+    R->>R: network_id生成/取得
+    R->>R: IPv6アドレス生成
+    R-->>H: network_id + IPv6アドレス
+    H-->>A: IPv6アドレス通知
+    
+    Note over A: Unison内でIPv6アドレス使用開始
+    
+    A->>H: メッセージ送信 (IPv6)
+    H->>R: ルーティング
+```
 
-**動作**:
-- 新しいHubを発見したら、直接接続を試行
-- 接続が確立できない場合（NAT/Firewall）、Root経由のルーティング
+### 6.2 IPv6アドレス構造
 
-## 5. Network IDとIPv6プライベートネットワーク
+```mermaid
+graph LR
+    subgraph "IPv6 ULA構造"
+        direction TB
+        
+        FD[fd00<br/>ULA prefix<br/>8bit]
+        NID[network_id<br/>ネットワーク識別<br/>40bit]
+        NT[node_type<br/>Root=0, Hub=1<br/>Agent=2<br/>16bit]
+        NID2[node_id<br/>ノード固有ID<br/>64bit]
+        
+        FD --> NID
+        NID --> NT
+        NT --> NID2
+    end
+    
+    style FD fill:#ff6b6b
+    style NID fill:#ffa07a
+    style NT fill:#4ecdc4
+    style NID2 fill:#95e1d3
+```
 
-### 5.1 Network ID
+**アドレス例**:
 
-**概念**:
-- Unisonネットワークを識別する一意のID
-- Rootが発行・管理
-- 128ビットのUUID形式
-
-**用途**:
-- ネットワークの分離（複数の独立したUnisonネットワークを運用可能）
-- IPv6アドレスの生成
-- 認証・認可のスコープ
-
-### 5.2 IPv6プライベートユーザネットワーク
-
-**設計**:
-- **ULA (Unique Local Address)** を使用: `fd00::/8`
-- **アドレス構造**:
-  ```
-  fd00:network_id:node_type:node_id::
-
-  fd00 : Unique Local Address prefix
-  network_id : Network IDから生成（40bit）
-  node_type : ノードタイプ（Root=0, Hub=1, Agent=2）
-  node_id : ノード固有ID（64bit）
-  ```
-
-**例**:
 ```
 Root:  fd00:1234:5678:0000:0000:0000:0000:0001
+       └──┘ └────────┘ └──┘ └────────────────┘
+        ULA network_id  Root     node_id
+
 Hub:   fd00:1234:5678:0001:0000:0000:0000:0042
+       └──┘ └────────┘ └──┘ └────────────────┘
+        ULA network_id  Hub      node_id
+
 Agent: fd00:1234:5678:0002:0000:0000:0000:1337
+       └──┘ └────────┘ └──┘ └────────────────┘
+        ULA network_id  Agent    node_id
+```
+
+### 6.3 ネットワーク分離
+
+```mermaid
+graph TB
+    subgraph "Network A (network_id: 1234)"
+        RA[Root A]
+        HA1[Hub A1]
+        HA2[Hub A2]
+        AA1[Agent A1]
+        AA2[Agent A2]
+        
+        RA --> HA1
+        RA --> HA2
+        HA1 --> AA1
+        HA2 --> AA2
+    end
+    
+    subgraph "Network B (network_id: 5678)"
+        RB[Root B]
+        HB1[Hub B1]
+        HB2[Hub B2]
+        AB1[Agent B1]
+        AB2[Agent B2]
+        
+        RB --> HB1
+        RB --> HB2
+        HB1 --> AB1
+        HB2 --> AB2
+    end
+    
+    subgraph "Network C (network_id: abcd)"
+        RC[Root C]
+        HC1[Hub C1]
+        AC1[Agent C1]
+        
+        RC --> HC1
+        HC1 --> AC1
+    end
+    
+    style RA fill:#ff6b6b
+    style RB fill:#ff6b6b
+    style RC fill:#ff6b6b
 ```
 
 **利点**:
-- **完全なプライベートネットワーク**: 外部から隔離
-- **グローバル到達性**: Unison内部では完全にルーティング可能
-- **衝突回避**: Network IDによる一意性保証
-- **セキュリティ**: ネットワーク境界の明確化
+- 完全に独立した複数のUnisonネットワークを運用可能
+- network_idによる明確な境界
+- セキュリティドメインの分離
 
-### 5.3 アドレス割り当てフロー
+---
 
-```
-Agent起動
-  ↓
-Hub接続
-  ↓
-Hubを経由してRootに登録要求
-  ↓
-Root: network_idを含むIPv6アドレスを発行
-  ↓
-Agent: 発行されたIPv6アドレスを受け取り、Unisonネットワーク内で使用
-```
+## 7. QUIC通信
 
-## 6. QUIC通信戦略
+### 7.1 QUICコネクションの構造
 
-### 6.1 ストリームインデックスの予約
-
-QUICコネクション内のストリームは、以下のように用途別に予約されます：
-
-```
-Stream Index 1-99:   システム予約（Unison Protocol内部使用）
-Stream Index 100以上: ユーザ自由使用（アプリケーション定義）
-```
-
-#### システム予約ストリーム（1-99）
-
-| Stream Index | 用途 | 説明 |
-|-------------|------|------|
-| 1 | **接続確立制御** | ノード間接続時の初期ハンドシェイク・認証 |
-| 2 | ハートビート/Keepalive | 接続維持と死活監視 |
-| 3 | ノード情報交換 | メタデータ、capability negotiation |
-| 4-9 | 制御メッセージ | 設定変更、状態通知など |
-| 10-19 | ルーティング制御 | Hub/Root間のルーティングテーブル更新 |
-| 20-29 | 認証・認可 | 権限管理、トークン更新 |
-| 30-99 | 将来の拡張用 | システム機能の追加に予約 |
-
-#### Stream 1: 接続確立制御ストリーム
-
-**特別な役割**:
-- ノード間のQUICコネクション確立時に、**最初に開かれる双方向ストリーム**
-- システムレベルのハンドシェイクと初期化を担当
-
-**特性**:
-- **双方向**: 両ノードが相互に送受信可能
-- **順不同**: メッセージは到着順で処理（順序依存なし）
-- **安定**: コネクション存続中は常に開いた状態を維持
-- **高優先度**: 他のストリームより優先的に処理
-
-**用途の詳細**:
-1. **プロトコルバージョンネゴシエーション**
-   - Unisonプロトコルバージョンの交換
-   - サポート機能の確認
-
-2. **ノード認証**
-   - ノードIDの交換
-   - Network ID検証
-   - 証明書検証（オプション）
-
-3. **初期設定交換**
-   - サポートするストリームインデックス範囲
-   - 最大メッセージサイズ
-   - 優先度設定
-
-4. **接続確立完了通知**
-   - ハンドシェイク完了の相互確認
-   - 通常通信開始の合図
-
-**メッセージフォーマット例**:
-```rust
-// Stream 1で交換されるメッセージ（概念図）
-struct ConnectionHandshake {
-    protocol_version: String,      // "unison/0.1.0"
-    node_id: [u8; 32],             // ノード固有ID
-    network_id: [u8; 16],          // Network UUID
-    node_type: NodeType,           // Agent/Hub/Root
-    capabilities: Vec<String>,     // サポート機能リスト
-    ipv6_addr: Ipv6Addr,          // Unison IPv6アドレス
-}
+```mermaid
+graph TB
+    subgraph "単一QUICコネクション"
+        direction TB
+        
+        subgraph "双方向ストリーム"
+            S1[Stream 1<br/>接続確立制御<br/>優先度: 0 最高]
+            S2[Stream 2<br/>ハートビート<br/>優先度: 1]
+            S3[Stream 3<br/>ノード情報交換<br/>優先度: 1]
+            S99[Stream 4-99<br/>システム予約<br/>優先度: 1-2]
+            S100[Stream 100+<br/>ユーザ定義<br/>優先度: 2-7]
+        end
+        
+        subgraph "データグラム (順序不定・低遅延)"
+            D1[メディア<br/>ストリーミング]
+            D2[ゲーム<br/>データ]
+            D3[センサー<br/>データ]
+        end
+    end
+    
+    style S1 fill:#ff6b6b
+    style S2 fill:#ffa07a
+    style S3 fill:#ffa07a
+    style S99 fill:#ffcc99
+    style S100 fill:#98d8c8
+    style D1 fill:#c7ecee
+    style D2 fill:#c7ecee
+    style D3 fill:#c7ecee
 ```
 
-### 6.2 UnisonPacket - QUICストリーム上のデータ単位
+### 7.2 Stream 1: 接続確立制御
 
-QUICストリーム上でやり取りされるデータの基本単位として、**UnisonPacket**を定義します。
-
-#### 構造
-
-```
-┌─────────────────────────────────────┐
-│         UnisonPacket                 │
-├─────────────────────────────────────┤
-│  PacketHeader (48 bytes, 固定長)     │ ← ゼロアロケーションで読み取り
-│  ├─ version: u8                     │
-│  ├─ packet_type: u8                  │
-│  ├─ flags: u16                      │
-│  ├─ payload_length: u32             │
-│  ├─ compressed_length: u32          │
-│  ├─ sequence_number: u64            │
-│  ├─ timestamp: u64                  │
-│  ├─ stream_id: u64                  │
-│  ├─ message_id: u64                 │
-│  └─ response_to: u64                │
-├─────────────────────────────────────┤
-│  Payload (可変長)                    │
-│  └─ 圧縮 or 非圧縮 (rkyv形式)       │
-└─────────────────────────────────────┘
-```
-
-#### 設計思想
-
-**ゼロアロケーション原則**:
-- 固定長ヘッダー（48 bytes）により、メモリコピーなしで直接読み取り
-- `#[repr(C)]`による明確なメモリレイアウト
-- バイト配列からヘッダー構造体へ直接キャスト可能
-
-**型安全性**:
-- ジェネリクス `UnisonPacket<T: Payloadable>` による型安全なペイロード
-- rkyvによるゼロコピーデシリアライゼーション
-
-**自動最適化**:
-- 2KB以上のペイロードは自動的にzstd Level 1で圧縮
-- 圧縮効果がない場合は非圧縮のまま送信
-
-#### PacketHeader フィールド
-
-| フィールド | 型 | 説明 |
-|-----------|-----|------|
-| version | u8 | プロトコルバージョン |
-| packet_type | u8 | フレームタイプ（Data/Control/Heartbeat/etc） |
-| flags | u16 | フラグビット（圧縮/優先度） |
-| payload_length | u32 | 元のペイロード長 |
-| compressed_length | u32 | 圧縮後のサイズ（0=非圧縮） |
-| sequence_number | u64 | シーケンス番号 |
-| timestamp | u64 | タイムスタンプ（μs） |
-| stream_id | u64 | QUICストリームID（1-99: システム, 100+: ユーザ） |
-| message_id | u64 | メッセージID（このメッセージの一意な識別子） |
-| response_to | u64 | 応答先メッセージID（0=Request/Oneway, >0=Response） |
-
-#### 使用例
-
-```rust
-use unison::frame::{UnisonPacket, StringPayload};
-
-// フレーム作成
-let payload = StringPayload::from_string("Hello, Unison!");
-let frame = UnisonPacket::builder()
-    .with_stream_id(100)
-    .with_sequence(1)
-    .build(payload)?;
-
-// QUICストリームで送信
-let bytes = frame.to_bytes();
-send_stream.write_all(&bytes).await?;
-
-// 受信側：ゼロアロケーションで読み取り
-let bytes = recv_stream.read_to_end().await?;
-let frame = UnisonPacket::<StringPayload>::from_bytes(&bytes)?;
-
-// ヘッダーのみ読み取り（ペイロード未処理）
-let header = frame.header()?;
-println!("Stream: {}, Seq: {}", header.stream_id, header.sequence_number);
-
-// 必要に応じてペイロードを取得
-let payload = frame.payload()?;
+```mermaid
+sequenceDiagram
+    participant A as Node A
+    participant S1 as Stream 1
+    participant B as Node B
+    
+    Note over A,B: QUICコネクション確立
+    
+    A->>S1: Stream 1 オープン
+    B->>S1: Stream 1 オープン
+    
+    rect rgb(255, 230, 230)
+    Note over A,B: 1. プロトコルバージョンネゴシエーション
+    A->>S1: UnisonHandshake<br/>{version: "0.1.0", ...}
+    S1->>B: 受信
+    B->>S1: UnisonHandshake<br/>{version: "0.1.0", ...}
+    S1->>A: 受信
+    end
+    
+    rect rgb(230, 255, 230)
+    Note over A,B: 2. ノード認証
+    A->>S1: NodeAuth<br/>{node_id, network_id, ...}
+    S1->>B: 受信・検証
+    B->>S1: NodeAuth<br/>{node_id, network_id, ...}
+    S1->>A: 受信・検証
+    end
+    
+    rect rgb(230, 230, 255)
+    Note over A,B: 3. 初期設定交換
+    A->>S1: ConfigExchange<br/>{stream_range, max_msg_size, ...}
+    S1->>B: 受信
+    B->>S1: ConfigExchange<br/>{stream_range, max_msg_size, ...}
+    S1->>A: 受信
+    end
+    
+    rect rgb(255, 255, 230)
+    Note over A,B: 4. 接続確立完了
+    A->>S1: ConnectionReady
+    S1->>B: 受信
+    B->>S1: ConnectionReady
+    S1->>A: 受信
+    end
+    
+    Note over A,B: 通常通信開始（他のストリーム利用可能）
 ```
 
-#### メッセージタイプの識別
+### 7.3 ストリーム予約マップ
 
-UnisonPacketは、`message_id`と`response_to`フィールドを使って、3種類のメッセージタイプを識別します：
-
-| メッセージタイプ | message_id | response_to | 説明 |
-|---------------|-----------|------------|------|
-| **Request** | > 0 | = 0 | リクエストメッセージ（応答を期待） |
-| **Response** | > 0 | > 0 | レスポンスメッセージ（`response_to`が応答先のRequestのmessage_id） |
-| **Oneway** | = 0 | = 0 | 一方向メッセージ（応答不要） |
-
-**使用例**:
-
-```rust
-// Request: message_id=123, response_to=0
-let request = UnisonPacket::builder()
-    .with_message_id(123)
-    .with_response_to(0)
-    .build(payload)?;
-
-assert!(request.header()?.is_request());
-
-// Response: message_id=456, response_to=123 (Requestのmessage_idを参照)
-let response = UnisonPacket::builder()
-    .with_message_id(456)
-    .with_response_to(123)  // 元のRequestのID
-    .build(payload)?;
-
-assert!(response.header()?.is_response());
-println!("Response to request ID: {}", response.header()?.response_to);
-
-// Oneway: message_id=0, response_to=0
-let oneway = UnisonPacket::builder()
-    .with_message_id(0)
-    .with_response_to(0)
-    .build(payload)?;
-
-assert!(oneway.header()?.is_oneway());
+```mermaid
+graph TB
+    subgraph "Stream Index予約"
+        S1[1: 接続確立制御]
+        S2[2: ハートビート]
+        S3[3: ノード情報交換]
+        S4_9[4-9: 制御メッセージ]
+        S10_19[10-19: ルーティング制御]
+        S20_29[20-29: 認証・認可]
+        S30_99[30-99: 将来拡張用]
+        S100[100+: ユーザ自由]
+    end
+    
+    System[システム予約<br/>1-99] --> S1
+    System --> S2
+    System --> S3
+    System --> S4_9
+    System --> S10_19
+    System --> S20_29
+    System --> S30_99
+    
+    User[ユーザ定義<br/>100+] --> S100
+    
+    style System fill:#ffcccc
+    style User fill:#ccffcc
+    style S1 fill:#ff6b6b
 ```
 
-**利点**:
-- **ヘッダーだけで判別可能**: ペイロードを読む前にメッセージタイプを識別
-- **Request-Response紐付け**: `response_to`でどのRequestへの応答かを追跡
-- **トレーシング**: `message_id`でメッセージフロー全体を追跡可能
+### 7.4 ストリームとデータグラムの使い分け
 
-#### ストリームとの関係
-
-- **各QUICストリームは、複数のUnisonPacketを連続して送信可能**
-- Stream 1（接続確立制御）では、ハンドシェイク用の特殊なFrameをやり取り
-- Stream 2-99（システム）では、制御用のFrameをやり取り
-- Stream 100+（ユーザ）では、アプリケーション定義のFrameをやり取り
-- **Request/Response**: 同じストリーム上でやり取りすることを推奨（順序保証のため）
-- **Oneway**: 任意のストリームで送信可能
-
-### 6.3 ストリームとデータグラムの使い分け
-
-QUICの2つの通信チャネルを、用途に応じて使い分けます：
-
-#### 双方向ストリーム（Bidirectional Streams）
-
-**用途**:
-- **システムストリーム (1-99)**: 制御メッセージ、認証、設定
-- **ユーザストリーム (100+)**: RPC、ファイル転送、状態同期
-
-**特徴**:
-- 順序保証
-- 信頼性（再送保証）
-- フロー制御
-- 優先度設定可能
-
-**優先度設計**:
-```
-Priority 0 (最高): Stream 1（接続確立制御）
-Priority 1:        システムストリーム（2-99）
-Priority 2:        高優先度ユーザストリーム
-Priority 3:        通常ユーザストリーム
-Priority 4-7:      アプリケーション定義
+```mermaid
+graph TD
+    Start{通信要件}
+    
+    Start -->|順序保証必須| Stream
+    Start -->|低遅延優先| Datagram
+    
+    Stream{信頼性}
+    Stream -->|必須| BidiStream[双方向ストリーム]
+    
+    BidiStream{用途}
+    BidiStream -->|システム| SysStream[Stream 1-99<br/>制御・認証]
+    BidiStream -->|アプリ| UserStream[Stream 100+<br/>RPC・ファイル転送]
+    
+    Datagram{データ特性}
+    Datagram -->|メディア| Media[メディアストリーム<br/>音声・動画]
+    Datagram -->|リアルタイム| RT[ゲーム・センサー]
+    Datagram -->|ベストエフォート| BE[ログ配信]
+    
+    style Stream fill:#98d8c8
+    style Datagram fill:#c7ecee
+    style SysStream fill:#ffa07a
+    style UserStream fill:#95e1d3
 ```
 
-#### データグラム（Unreliable Datagrams）
+---
 
-**用途**:
-- メディアストリーミング（音声、動画）
-- リアルタイムゲーム通信
-- センサーデータ配信
-- ログ配信（ベストエフォート）
+## 8. パケットフォーマット
 
-**特徴**:
-- 順序保証なし
-- 再送なし
-- 最低レイテンシー
-- 大量データ配信に最適
+### 8.1 UnisonPacket構造
 
-### 6.2 コネクション管理
+```mermaid
+graph TB
+    subgraph "UnisonPacket"
+        direction TB
+        
+        Header[PacketHeader<br/>64 bytes固定長]
+        Payload[Payload<br/>可変長]
+        
+        subgraph "Header詳細"
+            V[version: u8]
+            PT[packet_type: u8]
+            F[flags: u16]
+            PL[payload_length: u32]
+            CL[compressed_length: u32]
+            SN[sequence_number: u64]
+            TS[timestamp: u64]
+            SID[stream_id: u64]
+            MID[message_id: u64]
+            RT[response_to: u64]
+        end
+        
+        Header --> V
+        Header --> PT
+        Header --> F
+        Header --> PL
+        Header --> CL
+        Header --> SN
+        Header --> TS
+        Header --> SID
+        Header --> MID
+        Header --> RT
+        
+        Header -.-> Payload
+    end
+    
+    style Header fill:#ffcccc
+    style Payload fill:#ccffcc
+```
 
-**単一コネクション原則**:
-- ノード間は原則として**1つのQUICコネクション**のみ確立
-- そのコネクション上で、複数のストリームとデータグラムを多重化
+### 8.2 メッセージタイプ識別
 
-**利点**:
-- コネクション確立コストの削減
-- Head-of-Line Blockingの回避（ストリーム独立性）
-- 効率的な帯域利用
-- NAT/Firewallトラバーサルの簡素化
+```mermaid
+graph TD
+    Packet[UnisonPacket]
+    
+    Packet --> CheckMID{message_id}
+    Packet --> CheckRT{response_to}
+    
+    CheckMID -->|= 0| MID0[message_id = 0]
+    CheckMID -->|> 0| MID1[message_id > 0]
+    
+    CheckRT -->|= 0| RT0[response_to = 0]
+    CheckRT -->|> 0| RT1[response_to > 0]
+    
+    MID0 & RT0 --> Oneway[Oneway<br/>一方向メッセージ]
+    MID1 & RT0 --> Request[Request<br/>リクエスト]
+    MID1 & RT1 --> Response[Response<br/>レスポンス]
+    
+    Request -.message_id: 123.-> Response
+    Response -.response_to: 123.-> Request
+    
+    style Oneway fill:#c7ecee
+    style Request fill:#98d8c8
+    style Response fill:#95e1d3
+```
 
-### 6.3 パフォーマンス最適化
+**識別ルール**:
 
-- **0-RTT再接続**: セッション再開時のレイテンシー削減
-- **コネクションマイグレーション**: IPアドレス変更時も接続維持
-- **適応的フロー制御**: ネットワーク状況に応じた動的調整
-- **BBR輻輳制御**: 最大スループット実現
-- **Early Data**: TLSハンドシェイク中のデータ送信
+```mermaid
+flowchart LR
+    Start([パケット受信])
+    
+    Start --> CheckMID{message_id<br/>== 0?}
+    
+    CheckMID -->|はい| CheckRT1{response_to<br/>== 0?}
+    CheckMID -->|いいえ| CheckRT2{response_to<br/>== 0?}
+    
+    CheckRT1 -->|はい| Oneway[Oneway]
+    CheckRT1 -->|いいえ| Invalid1[無効]
+    
+    CheckRT2 -->|はい| Request[Request]
+    CheckRT2 -->|いいえ| Response[Response]
+    
+    style Oneway fill:#c7ecee
+    style Request fill:#98d8c8
+    style Response fill:#95e1d3
+    style Invalid1 fill:#ffcccc
+```
 
-## 7. 障害時の動作
+### 8.3 Request-Response相関
 
-### 7.1 Hub障害
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    
+    Note over C: message_id生成: 42
+    
+    C->>S: Request<br/>message_id: 42<br/>response_to: 0<br/>payload: "getUserInfo"
+    
+    Note over S: リクエスト処理
+    Note over S: message_id生成: 99
+    Note over S: response_toに42を設定
+    
+    S->>C: Response<br/>message_id: 99<br/>response_to: 42<br/>payload: {user: ...}
+    
+    Note over C: response_to == 42<br/>→ 元のリクエストに対応
+```
 
-**Agentの動作**:
-1. 接続断を検知
-2. 他のHubへの再接続を試行（Hubディスカバリー再実行）
-3. Hub未発見の場合、新しいHub serviceを起動
+### 8.4 圧縮フロー
 
-**他のHubの動作**:
-- 障害Hubに接続していたAgentを受け入れ
-- Rootに障害を報告
+```mermaid
+flowchart TD
+    Start[ペイロード]
+    
+    Start --> CheckSize{payload_length<br/>>= 2KB?}
+    
+    CheckSize -->|いいえ| NoCompress[非圧縮のまま送信<br/>compressed_length = 0]
+    CheckSize -->|はい| Compress[zstd Level 1で圧縮]
+    
+    Compress --> CheckEffect{compressed_length<br/>< payload_length?}
+    
+    CheckEffect -->|はい| UseCompressed[圧縮版を送信<br/>compressed_length > 0<br/>flagsにCOMPRESSEDセット]
+    CheckEffect -->|いいえ| NoCompress
+    
+    NoCompress --> Send[送信]
+    UseCompressed --> Send
+    
+    style NoCompress fill:#c7ecee
+    style UseCompressed fill:#98d8c8
+```
 
-### 7.2 Root障害
+---
 
-**重大な障害**: Rootは単一なので、ネットワーク全体に影響
+## 9. 障害時の動作
 
-**Hubの動作**:
-1. Root切断を検知
-2. 孤立モードに移行
-3. Root再接続を定期的に試行
-4. Hub間の直接通信を維持（既存の接続は継続）
+### 9.1 Hub障害時のフローチャート
 
-**復旧時**:
-- Rootが復旧したら、Hubは自動的に再接続
-- ネットワーク状態の再同期
+```mermaid
+flowchart TD
+    AgentConnected[Agent - Hub接続中]
+    
+    AgentConnected --> HubFail[Hub障害発生]
+    
+    HubFail --> Detect[接続断を検知]
+    
+    Detect --> Rediscover[Hubディスカバリー再実行]
+    
+    Rediscover --> Found{他のHub発見?}
+    
+    Found -->|はい| Reconnect[他のHubに再接続]
+    Found -->|いいえ| LaunchNew[新しいHub起動]
+    
+    Reconnect --> Recovered[接続復旧]
+    LaunchNew --> Reconnect
+    
+    Recovered --> Normal[通常動作再開]
+    
+    style HubFail fill:#ffcccc
+    style Recovered fill:#ccffcc
+```
 
-**将来の拡張**: Root冗長化（Hot Standby）の検討
+### 9.2 Root障害時の影響範囲
 
-### 7.3 Agent障害
+```mermaid
+graph TB
+    Root[Root障害発生]
+    
+    Root --> Impact1[既存Hub接続: 切断]
+    Root --> Impact2[新規Agent: 参加不可]
+    Root --> Impact3[network_id発行: 停止]
+    
+    Impact1 --> Hub1[Hub → 孤立モード]
+    Hub1 --> Keep[既存Agent接続: 維持]
+    Hub1 --> Mesh[Hub間メッシュ: 維持]
+    
+    Hub1 --> Retry[Root再接続を定期試行<br/>Exponential Backoff]
+    
+    Retry --> RootRecover{Root復旧?}
+    
+    RootRecover -->|はい| Reconnect[自動再接続]
+    RootRecover -->|いいえ| Retry
+    
+    Reconnect --> Resync[状態再同期]
+    Resync --> Normal[通常動作再開]
+    
+    style Root fill:#ff6b6b
+    style Hub1 fill:#ffa07a
+    style Normal fill:#ccffcc
+```
 
-- Hubは接続断を検知し、リソースをクリーンアップ
-- 他のノードへの影響は最小限
+### 9.3 障害時の動作まとめ
 
-## 8. セキュリティ
+```mermaid
+graph LR
+    subgraph "Agent障害"
+        A1[影響範囲: 最小]
+        A2[Hub: リソースクリーンアップ]
+        A3[他ノード: 影響なし]
+    end
+    
+    subgraph "Hub障害"
+        H1[影響範囲: 中]
+        H2[Agent: 他Hubに再接続]
+        H3[Root: 障害報告受信]
+    end
+    
+    subgraph "Root障害"
+        R1[影響範囲: 大]
+        R2[Hub: 孤立モード移行]
+        R3[既存通信: 継続可能]
+        R4[新規参加: 不可]
+    end
+    
+    style A1 fill:#ccffcc
+    style H1 fill:#ffffcc
+    style R1 fill:#ffcccc
+```
 
-### 8.1 トランスポートレベル
+---
 
-- **TLS 1.3**: QUICに組み込み済み
-- **前方秘匿性**: セッションキーの定期更新
-- **証明書検証**: 相互認証（オプション）
+## 10. セキュリティ
 
-### 8.2 ネットワークレベル
+### 10.1 セキュリティレイヤー
 
-- **Network ID検証**: 不正なネットワークからの接続を拒否
-- **ノード認証**: Rootによる認証（実装依存）
-- **アクセス制御**: Rootがポリシーを管理
+```mermaid
+graph TB
+    subgraph "セキュリティ階層"
+        direction TB
+        
+        L1[アプリケーション層<br/>認証・認可]
+        L2[ネットワーク層<br/>Network ID検証]
+        L3[トランスポート層<br/>QUIC/TLS 1.3]
+        
+        L1 --> L2
+        L2 --> L3
+    end
+    
+    L1 --> Auth[Root認証<br/>アクセス制御]
+    L2 --> NetID[Network ID検証<br/>不正ネットワーク拒否]
+    L3 --> TLS[暗号化<br/>前方秘匿性<br/>証明書検証]
+    
+    style L1 fill:#ff6b6b
+    style L2 fill:#ffa07a
+    style L3 fill:#ffcc99
+```
 
-## 9. 今後の拡張
+### 10.2 認証フロー
 
-### 9.1 短期計画
-- [ ] NAT traversal / ホールパンチング実装
-- [ ] Root冗長化（Hot Standby）
-- [ ] DHT-based discovery
-- [ ] メトリクス収集・監視システム
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant H as Hub
+    participant R as Root
+    
+    A->>H: 接続要求
+    H->>H: TLS 1.3ハンドシェイク
+    H-->>A: 暗号化確立
+    
+    A->>H: ノード情報<br/>(node_id, 証明書)
+    H->>H: 証明書検証
+    
+    alt 検証成功
+        H->>R: Agent登録要求<br/>(node_id, network_id)
+        R->>R: Network ID検証
+        R->>R: 認証・認可チェック
+        
+        alt 認証成功
+            R-->>H: network_id + IPv6アドレス
+            H-->>A: 接続確立完了
+        else 認証失敗
+            R-->>H: 認証エラー
+            H-->>A: 接続拒否
+        end
+    else 検証失敗
+        H-->>A: 証明書エラー
+    end
+```
 
-### 9.2 長期計画
-- [ ] マルチリージョンRoot（地理的分散）
-- [ ] エッジコンピューティング対応
-- [ ] P2P直接通信の最適化（Hubバイパス）
-- [ ] カスタムルーティングポリシー
+---
 
-## 10. 関連ドキュメント
+## 11. 今後の拡張
+
+### 11.1 拡張ロードマップ
+
+```mermaid
+timeline
+    title Unison Network 拡張計画
+    
+    section 短期 (v0.2-0.3)
+        NAT traversal実装
+        : ホールパンチング
+        : STUN/TURNサポート
+        
+        Root冗長化
+        : Hot Standby
+        : 自動フェイルオーバー
+        
+        DHT Discovery
+        : 分散ディスカバリー
+        : スケーラビリティ向上
+    
+    section 中期 (v0.4-0.6)
+        マルチリージョンRoot
+        : 地理的分散
+        : レイテンシー最適化
+        
+        エッジコンピューティング
+        : エッジノード対応
+        : 計算オフロード
+    
+    section 長期 (v1.0+)
+        P2P最適化
+        : Hubバイパス
+        : 直接通信
+        
+        カスタムルーティング
+        : ポリシーベース
+        : QoS制御
+```
+
+### 11.2 機能依存関係
+
+```mermaid
+graph TB
+    subgraph "v0.1 (Current)"
+        Core[コアネットワーク]
+        QUIC[QUIC通信]
+        Discovery[基本ディスカバリー]
+    end
+    
+    subgraph "v0.2-0.3"
+        NAT[NAT Traversal]
+        RootHA[Root冗長化]
+        DHT[DHT Discovery]
+    end
+    
+    subgraph "v0.4-0.6"
+        MultiRegion[マルチリージョンRoot]
+        Edge[エッジコンピューティング]
+    end
+    
+    subgraph "v1.0+"
+        P2P[P2P最適化]
+        CustomRoute[カスタムルーティング]
+    end
+    
+    Core --> NAT
+    Core --> RootHA
+    Discovery --> DHT
+    
+    RootHA --> MultiRegion
+    NAT --> P2P
+    DHT --> Edge
+    
+    MultiRegion --> CustomRoute
+    Edge --> CustomRoute
+    P2P --> CustomRoute
+    
+    style Core fill:#ccffcc
+    style NAT fill:#ffffcc
+    style MultiRegion fill:#ffeecc
+    style P2P fill:#ffddcc
+```
+
+---
+
+## 12. 関連ドキュメント
+
+### 12.1 ドキュメント構造
+
+```mermaid
+graph LR
+    subgraph "仕様書 (spec/)"
+        Spec01[01: コアネットワーク]
+        Spec02[02: RPCプロトコル]
+    end
+    
+    subgraph "設計 (design/)"
+        DesignArch[architecture.md]
+        DesignPacket[packet.md]
+    end
+    
+    subgraph "ガイド (guides/)"
+        GuideQuinn[quinn-stream-api.md]
+    end
+    
+    subgraph "実装 (crates/)"
+        ImplProtocol[unison-protocol]
+        ImplNetwork[unison-network]
+    end
+    
+    Spec01 -.参照.-> Spec02
+    Spec01 --> DesignArch
+    Spec01 --> DesignPacket
+    DesignArch --> GuideQuinn
+    DesignPacket --> ImplProtocol
+    GuideQuinn --> ImplNetwork
+    
+    style Spec01 fill:#ffcccc
+    style Spec02 fill:#ffcccc
+    style DesignArch fill:#ccffcc
+    style DesignPacket fill:#ccffcc
+    style GuideQuinn fill:#ccccff
+    style ImplProtocol fill:#ffeecc
+    style ImplNetwork fill:#ffeecc
+```
 
 ### 仕様書
 - [spec/02: RPCプロトコル](../02-protocol-rpc/SPEC.md) - KDLベースRPC層
@@ -630,6 +1225,6 @@ Priority 4-7:      アプリケーション定義
 
 ---
 
-**仕様バージョン**: 0.1.0-draft
-**最終更新**: 2025-11-05
+**仕様バージョン**: 0.1.0-draft  
+**最終更新**: 2025-11-05  
 **ステータス**: Draft
